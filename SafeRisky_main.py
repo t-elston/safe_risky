@@ -6,6 +6,8 @@ Top of stack for analysis of safe vs risky human data
 """
 #%% import functions
 import SafeRisky_fxns as sr
+import pingouin as pg
+import matplotlib.pyplot as plt
 
 
 #%% point of entry
@@ -18,12 +20,12 @@ datadir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/data/'
 
 
 # load and process data
-gain_choice , gain_rt, gain_all  = sr.load_processData(datadir,context = 'Gain',debug_ = False)
-loss_choice , loss_rt, loss_all  = sr.load_processData(datadir,context = 'Loss',debug_ = False)
+gain_choice , gain_rt, gain_all = sr.load_processData(datadir,context = 'Gain',debug_ = False)
+loss_choice , loss_rt, loss_all = sr.load_processData(datadir,context = 'Loss',debug_ = False)
 
 
 # plot and analyze choice, rt, and survey data
-sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = True)
+sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = False)
 sr.plotChoice_or_RT(gain_rt,loss_rt,datatype='rt',debug_ = False)
 
 
@@ -44,4 +46,8 @@ sr.plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay, d
 gain_bestparams, gain_bestAccOpt = sr.distRLmodel_MLE(gain_all, debug_=False)
 loss_bestparams, loss_bestAccOpt = sr.distRLmodel_MLE(loss_all, debug_=False)
 
-# TODO: make function to plot and quantify distRL parameters
+# plot and quantify distRL parameters
+sr.relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
+                           gain_choice, loss_choice,
+                           gain_bestAccOpt,loss_bestAccOpt,
+                           debug_=True)
