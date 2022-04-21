@@ -18,7 +18,7 @@ import pingouin as pg
 import itertools as it
 import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
+import math
 
 
 
@@ -40,198 +40,243 @@ def load_processData(datadir,context,debug_):
    
     # dataframe for RTs
     pRTdata = pd.DataFrame()
-
     
+    # dataframe for subject rejection
+    p_reject = pd.DataFrame()
+
+    ctr = 0
     
     print('assessing file#:', end=' ')
     # load a csv file and assess each one
     
     for i in range(len(fnames)):
-        
-        pChoicedata
-        
+                
         print(str(i),end=' ')
         
         df = pd.read_csv(fnames[i],header=[0])
-
-        # only assess the context specified as input argument
-        df = df[df.blkType == context]
         
-        # drop trials with RTs that were too slow or too fast
-        df = df.drop(df[(df.rt > 3000) | (df.rt < 200)].index)
-        df = df.reset_index()
-        
-        # change a few datatypes
-        df.highProbSelected = df.highProbSelected.astype(int)
-        df.probLeft = df.probLeft.astype(float)
-        df.probRight = df.probRight.astype(float)
-        
-        # get some useful indices
-        # trial types and task phases
-        trainix = df.phase == "training"
-        testix  = df.phase == "exp"
-        
-        # infer trial types from the left/right stimulus types
-        safe_ix  = (df.imgLeftType == 'Safe') & (df.imgRightType == 'Safe')
-        risky_ix = (df.imgLeftType == 'Risky') & (df.imgRightType == 'Risky')
-        EQ    = df.probLeft == df.probRight
-        UE    = (df.imgLeftType != df.imgRightType) & ~EQ
+        # get overall training performance so we can reject subjects
+        all_train_ix = df.phase == "training"
+        all_safe_ix  = (df.imgLeftType == 'Safe') & (df.imgRightType == 'Safe')
+        all_risky_ix = (df.imgLeftType == 'Risky') & (df.imgRightType == 'Risky')
+        gain_ix = df.blkType == 'Gain'
+        loss_ix = df.blkType == 'Loss'
         
         # define the best options for the two contexts (gain/loss)
-        picked_best = np.zeros(len(EQ))
+        all_picked_best = np.zeros(len(gain_ix))
         
         if context == 'Loss':
-            picked_best = df.highProbSelected ==0
+            all_picked_best = df.highProbSelected ==0
         else:
-            picked_best = df.highProbSelected ==1
+            all_picked_best = df.highProbSelected ==1
+            
+        all_picked_best = all_picked_best.astype(int)
         
-        # keep track of which stimulus type was chosen on each trial
-        picked_risky = np.empty(len(EQ))
-        picked_risky[(df.responseSide == 'left') & (df.imgLeftType == 'Risky')] = 1
-        picked_risky[(df.responseSide == 'right') & (df.imgRightType == 'Risky')] = 1
+        crit = 0.05
         
-        chose_risky_ix = np.array(picked_risky, dtype=bool)
-
-        # define reaction times
-        rt = df.rt
         
-        # infer image types and assign identifying numbers (useful for WS,LS analysis)
-        left_imgnum = np.empty(len(df.rt))
-        right_imgnum = np.empty(len(df.rt))
+        gain_safe_stats = pg.ttest(all_picked_best[all_train_ix & gain_ix & all_safe_ix],.5)
+        gain_safe_p = gain_safe_stats['p-val'][0]
+        gain_risky_stats = pg.ttest(all_picked_best[all_train_ix & gain_ix & all_risky_ix],.5)
+        gain_risky_p = gain_risky_stats['p-val'][0]
+        loss_safe_stats = pg.ttest(all_picked_best[all_train_ix & loss_ix & all_safe_ix],.5)
+        loss_safe_p = loss_safe_stats['p-val'][0]
+        loss_risky_stats = pg.ttest(all_picked_best[all_train_ix & loss_ix & all_risky_ix],.5)
+        loss_risky_p = loss_risky_stats['p-val'][0]
         
-        left_imgnum[df.probLeft ==.2] = 0
-        left_imgnum[df.probLeft ==.5] = 1
-        left_imgnum[df.probLeft ==.8] = 2
-        right_imgnum[df.probRight ==.2] = 0
-        right_imgnum[df.probRight ==.5] = 1
-        right_imgnum[df.probRight ==.8] = 2
-        
-        left_imgnum[df.imgLeftType=='Risky'] = left_imgnum[df.imgLeftType=='Risky']+3
-        right_imgnum[df.imgRightType=='Risky'] = right_imgnum[df.imgRightType=='Risky']+3
-
-        # add these values to the dataframe
-        df['imageNumberLeft'] = left_imgnum
-        df['imageNumberRight'] = right_imgnum  
-        
-        # add all data to the aggregate dataframe
-        alldata = alldata.append(df)
-        
-        #-----------------------------
-        #    summarize each subject
-        #-----------------------------   
+        if (gain_safe_p < crit) & (gain_risky_p < crit) & (loss_safe_p < crit) & (loss_risky_p < crit):
+          
+            # only assess the context specified as input argument
+            df = df[df.blkType == context]
     
-        # what is the best option's type?
-        besttype = np.empty((len(df.rt)))
+    
+            # drop trials with RTs that were too slow or too fast
+            df = df.drop(df[(df.rt > 3000) | (df.rt < 200)].index)
+            df = df.reset_index()
+            
+            # change a few datatypes
+            df.highProbSelected = df.highProbSelected.astype(int)
+            df.probLeft = df.probLeft.astype(float)
+            df.probRight = df.probRight.astype(float)
+            
+            # get some useful indices
+            # trial types and task phases
+            trainix = df.phase == "training"
+            testix  = df.phase == "exp"
+            
+            # infer trial types from the left/right stimulus types
+            safe_ix  = (df.imgLeftType == 'Safe') & (df.imgRightType == 'Safe')
+            risky_ix = (df.imgLeftType == 'Risky') & (df.imgRightType == 'Risky')
+            EQ    = df.probLeft == df.probRight
+            UE    = (df.imgLeftType != df.imgRightType) & ~EQ
+            
+            # define the best options for the two contexts (gain/loss)
+            picked_best = np.zeros(len(EQ))
+            
+            if context == 'Loss':
+                picked_best = df.highProbSelected ==0
+            else:
+                picked_best = df.highProbSelected ==1
                 
-        # find the trials where the wide/narrow options were better
-        for t in range(len(df.rt)):
-            if df.highProbSide[t] == 'left':               
-                if df.imgLeftType[t] == 'Risky':                   
-                    besttype[t] = 1                    
-                else:
-                    besttype[t] = 0               
-            else:               
-                if df.imgRightType[t] == 'Risky':                  
-                    besttype[t] = 1               
-                else:
-                    besttype[t] = 0               
+
+            # keep track of which stimulus type was chosen on each trial
+            picked_risky = np.empty(len(EQ))
+            picked_risky[(df.responseSide == 'left') & (df.imgLeftType == 'Risky')] = 1
+            picked_risky[(df.responseSide == 'right') & (df.imgRightType == 'Risky')] = 1
+            
+            chose_risky_ix = np.array(picked_risky, dtype=bool)
+    
+            # define reaction times
+            rt = df.rt
+            
+            # infer image types and assign identifying numbers (useful for WS,LS analysis)
+            left_imgnum = np.empty(len(df.rt))
+            right_imgnum = np.empty(len(df.rt))
+            
+            left_imgnum[df.probLeft ==.2] = 0
+            left_imgnum[df.probLeft ==.5] = 1
+            left_imgnum[df.probLeft ==.8] = 2
+            right_imgnum[df.probRight ==.2] = 0
+            right_imgnum[df.probRight ==.5] = 1
+            right_imgnum[df.probRight ==.8] = 2
+            
+            left_imgnum[df.imgLeftType=='Risky'] = left_imgnum[df.imgLeftType=='Risky']+3
+            right_imgnum[df.imgRightType=='Risky'] = right_imgnum[df.imgRightType=='Risky']+3
+    
+            # add these values to the dataframe
+            df['imageNumberLeft'] = left_imgnum
+            df['imageNumberRight'] = right_imgnum  
+            
+
+        
+            #-----------------------------
+            #    summarize each subject
+            #-----------------------------   
+        
+            # what is the best option's type?
+            besttype = np.empty((len(df.rt)))
+                    
+            # find the trials where the safe/risky options were better
+            for t in range(len(df.rt)):
+                if df.highProbSide[t] == 'left':               
+                    if df.imgLeftType[t] == 'Risky':                   
+                        besttype[t] = 1                    
+                    else:
+                        besttype[t] = 0               
+                else:               
+                    if df.imgRightType[t] == 'Risky':                  
+                        besttype[t] = 1               
+                    else:
+                        besttype[t] = 0               
+                            
+            
+            # choice conditions
+            a20 = (df.probLeft ==.2) | (df.probRight ==.2)
+            a50 = (df.probLeft ==.5) | (df.probRight ==.5)
+            a80 = (df.probLeft ==.8) | (df.probRight ==.8)
+            riskybest = besttype == 1
+            safebest = besttype == 0
+            t20v50 = a20 & a50
+            t50v80 = a80 & a50
+            t20v80 = a20 & a80
+            t20v20 = (df.probLeft ==.2) & (df.probRight ==.2)
+            t50v50 = (df.probLeft ==.5) & (df.probRight ==.5)
+            t80v80 = (df.probLeft ==.8) & (df.probRight ==.8)
+            
+
                         
-        
-        # choice conditions
-        a20 = (df.probLeft ==.2) | (df.probRight ==.2)
-        a50 = (df.probLeft ==.5) | (df.probRight ==.5)
-        a80 = (df.probLeft ==.8) | (df.probRight ==.8)
-        riskybest = besttype == 1
-        safebest = besttype == 0
-        t20v50 = a20 & a50
-        t50v80 = a80 & a50
-        t20v80 = a20 & a80
-        t20v20 = (df.probLeft ==.2) & (df.probRight ==.2)
-        t50v50 = (df.probLeft ==.5) & (df.probRight ==.5)
-        t80v80 = (df.probLeft ==.8) & (df.probRight ==.8)
-        
-        
-        # get subject idnum, version, sex, and age
-        pChoicedata.at[i,'vpnum']   = df.vpNum[0]
-        pChoicedata.at[i,'version'] = df.version[0]
-        pChoicedata.at[i,'context'] = context
-        pChoicedata.at[i,'age']     = df.age[0]
-        pChoicedata.at[i,'sex']     = df.gender[0]
-        
-        # look at training choice data
-        pChoicedata.at[i,'t_s_20v50'] = picked_best[trainix & t20v50 & safe_ix].mean()
-        pChoicedata.at[i,'t_s_50v80'] = picked_best[trainix & t50v80 & safe_ix].mean()
-        pChoicedata.at[i,'t_s_20v80'] = picked_best[trainix & t20v80 & safe_ix].mean()
-        
-        pChoicedata.at[i,'t_r_20v50'] = picked_best[trainix & t20v50 & risky_ix].mean()
-        pChoicedata.at[i,'t_r_50v80'] = picked_best[trainix & t50v80 & risky_ix].mean()
-        pChoicedata.at[i,'t_r_20v80'] = picked_best[trainix & t20v80 & risky_ix].mean()
 
-        # main block pure trials
-        pChoicedata.at[i,'s_20v50'] = picked_best[testix & t20v50 & safe_ix].mean()
-        pChoicedata.at[i,'s_50v80'] = picked_best[testix & t50v80 & safe_ix].mean()
-        pChoicedata.at[i,'s_20v80'] = picked_best[testix & t20v80 & safe_ix].mean()
-        
-        pChoicedata.at[i,'r_20v50'] = picked_best[testix & t20v50 & risky_ix].mean()
-        pChoicedata.at[i,'r_50v80'] = picked_best[testix & t50v80 & risky_ix].mean()
-        pChoicedata.at[i,'r_20v80'] = picked_best[testix & t20v80 & risky_ix].mean()
-        
-        # main block unequal trials
-        # safe is better
-        pChoicedata.at[i,'UE_s_20v50'] = picked_best[UE & t20v50 & riskybest].mean()
-        pChoicedata.at[i,'UE_s_50v80'] = picked_best[UE & t50v80 & riskybest].mean()
-        pChoicedata.at[i,'UE_s_20v80'] = picked_best[UE & t20v80 & riskybest].mean()
-        
-        # risky is better
-        pChoicedata.at[i,'UE_r_20v50'] = picked_best[UE & t20v50 & safebest].mean()
-        pChoicedata.at[i,'UE_r_50v80'] = picked_best[UE & t50v80 & safebest].mean()
-        pChoicedata.at[i,'UE_r_20v80'] = picked_best[UE & t20v80 & safebest].mean()
-        
-        # main block equivaluable trials
-        pChoicedata.at[i,'EQ20'] = picked_risky[t20v20].mean()
-        pChoicedata.at[i,'EQ50'] = picked_risky[t50v50].mean()
-        pChoicedata.at[i,'EQ80'] = picked_risky[t80v80].mean()
-        
-        
-        # do the same but with RTs
-        pRTdata.at[i,'vpnum']   = df.vpNum[0]
-        pRTdata.at[i,'version'] = df.version[0]
-        pRTdata.at[i,'context'] = context
-        pRTdata.at[i,'age']     = df.age[0]
-        pRTdata.at[i,'sex']     = df.gender[0]
-        
-        # look at training choice data
-        pRTdata.at[i,'t_s_20v50'] = rt[trainix & t20v50 & safe_ix].mean()
-        pRTdata.at[i,'t_s_50v80'] = rt[trainix & t50v80 & safe_ix].mean()
-        pRTdata.at[i,'t_s_20v80'] = rt[trainix & t20v80 & safe_ix].mean()
-        
-        pRTdata.at[i,'t_r_20v50'] = rt[trainix & t20v50 & risky_ix].mean()
-        pRTdata.at[i,'t_r_50v80'] = rt[trainix & t50v80 & risky_ix].mean()
-        pRTdata.at[i,'t_r_20v80'] = rt[trainix & t20v80 & risky_ix].mean()
+            # get subject idnum, version, sex, and age
+            pChoicedata.at[ctr,'vpnum']   = df.vpNum[0]
+            pChoicedata.at[ctr,'version'] = df.version[0]
+            pChoicedata.at[ctr,'context'] = context
+            pChoicedata.at[ctr,'age']     = df.age[0]
+            pChoicedata.at[ctr,'sex']     = df.gender[0]
+            
+            # look at training choice data
+            pChoicedata.at[ctr,'t_s_20v50'] = picked_best[trainix & t20v50 & safe_ix].mean()
+            pChoicedata.at[ctr,'t_s_50v80'] = picked_best[trainix & t50v80 & safe_ix].mean()
+            pChoicedata.at[ctr,'t_s_20v80'] = picked_best[trainix & t20v80 & safe_ix].mean()
+            
+            pChoicedata.at[ctr,'t_r_20v50'] = picked_best[trainix & t20v50 & risky_ix].mean()
+            pChoicedata.at[ctr,'t_r_50v80'] = picked_best[trainix & t50v80 & risky_ix].mean()
+            pChoicedata.at[ctr,'t_r_20v80'] = picked_best[trainix & t20v80 & risky_ix].mean()
+    
+            # main block pure trials
+            pChoicedata.at[ctr,'s_20v50'] = picked_best[testix & t20v50 & safe_ix].mean()
+            pChoicedata.at[ctr,'s_50v80'] = picked_best[testix & t50v80 & safe_ix].mean()
+            pChoicedata.at[ctr,'s_20v80'] = picked_best[testix & t20v80 & safe_ix].mean()
+            
+            pChoicedata.at[ctr,'r_20v50'] = picked_best[testix & t20v50 & risky_ix].mean()
+            pChoicedata.at[ctr,'r_50v80'] = picked_best[testix & t50v80 & risky_ix].mean()
+            pChoicedata.at[ctr,'r_20v80'] = picked_best[testix & t20v80 & risky_ix].mean()
+            
+            # main block unequal trials
+            # safe is better
+            pChoicedata.at[ctr,'UE_s_20v50'] = picked_best[UE & t20v50 & riskybest].mean()
+            pChoicedata.at[ctr,'UE_s_50v80'] = picked_best[UE & t50v80 & riskybest].mean()
+            pChoicedata.at[ctr,'UE_s_20v80'] = picked_best[UE & t20v80 & riskybest].mean()
+            
+            # risky is better
+            pChoicedata.at[ctr,'UE_r_20v50'] = picked_best[UE & t20v50 & safebest].mean()
+            pChoicedata.at[ctr,'UE_r_50v80'] = picked_best[UE & t50v80 & safebest].mean()
+            pChoicedata.at[ctr,'UE_r_20v80'] = picked_best[UE & t20v80 & safebest].mean()
+            
+            # main block equivaluable trials
+            pChoicedata.at[ctr,'EQ20'] = picked_risky[t20v20].mean()
+            pChoicedata.at[ctr,'EQ50'] = picked_risky[t50v50].mean()
+            pChoicedata.at[ctr,'EQ80'] = picked_risky[t80v80].mean()
+            
+            
+            # do the same but with RTs
+            pRTdata.at[ctr,'vpnum']   = df.vpNum[0]
+            pRTdata.at[ctr,'version'] = df.version[0]
+            pRTdata.at[ctr,'context'] = context
+            pRTdata.at[ctr,'age']     = df.age[0]
+            pRTdata.at[ctr,'sex']     = df.gender[0]
+            
+            # look at training choice data
+            pRTdata.at[ctr,'t_s_20v50'] = rt[trainix & t20v50 & safe_ix].mean()
+            pRTdata.at[ctr,'t_s_50v80'] = rt[trainix & t50v80 & safe_ix].mean()
+            pRTdata.at[ctr,'t_s_20v80'] = rt[trainix & t20v80 & safe_ix].mean()
+            
+            pRTdata.at[ctr,'t_r_20v50'] = rt[trainix & t20v50 & risky_ix].mean()
+            pRTdata.at[ctr,'t_r_50v80'] = rt[trainix & t50v80 & risky_ix].mean()
+            pRTdata.at[ctr,'t_r_20v80'] = rt[trainix & t20v80 & risky_ix].mean()
+    
+            # main block pure trials
+            pRTdata.at[ctr,'s_20v50'] = rt[testix & t20v50 & safe_ix].mean()
+            pRTdata.at[ctr,'s_50v80'] = rt[testix & t50v80 & safe_ix].mean()
+            pRTdata.at[ctr,'s_20v80'] = rt[testix & t20v80 & safe_ix].mean()
+            
+            pRTdata.at[ctr,'r_20v50'] = rt[testix & t20v50 & risky_ix].mean()
+            pRTdata.at[ctr,'r_50v80'] = rt[testix & t50v80 & risky_ix].mean()
+            pRTdata.at[ctr,'r_20v80'] = rt[testix & t20v80 & risky_ix].mean()
+            
+            # main block unequal trials
+            # narrow is better
+            pRTdata.at[ctr,'UE_s_20v50'] = rt[UE & t20v50 & safebest].mean()
+            pRTdata.at[ctr,'UE_s_50v80'] = rt[UE & t50v80 & safebest].mean()
+            pRTdata.at[ctr,'UE_s_20v80'] = rt[UE & t20v80 & safebest].mean()
+            
+            pRTdata.at[ctr,'UE_r_20v50'] = rt[UE & t20v50 & riskybest].mean()
+            pRTdata.at[ctr,'UE_r_50v80'] = rt[UE & t50v80 & riskybest].mean()
+            pRTdata.at[ctr,'UE_r_20v80'] = rt[UE & t20v80 & riskybest].mean()
+            
+            # main block equivaluable trials
+            pRTdata.at[ctr,'EQ20'] = rt[t20v20].mean()
+            pRTdata.at[ctr,'EQ50'] = rt[t50v50].mean()
+            pRTdata.at[ctr,'EQ80'] = rt[t80v80].mean()
+            
+            ctr = ctr+1
+            
+            # add all data to the aggregate dataframe
+            alldata = alldata.append(df)
 
-        # main block pure trials
-        pRTdata.at[i,'s_20v50'] = rt[testix & t20v50 & safe_ix].mean()
-        pRTdata.at[i,'s_50v80'] = rt[testix & t50v80 & safe_ix].mean()
-        pRTdata.at[i,'s_20v80'] = rt[testix & t20v80 & safe_ix].mean()
+
+
         
-        pRTdata.at[i,'r_20v50'] = rt[testix & t20v50 & risky_ix].mean()
-        pRTdata.at[i,'r_50v80'] = rt[testix & t50v80 & risky_ix].mean()
-        pRTdata.at[i,'r_20v80'] = rt[testix & t20v80 & risky_ix].mean()
         
-        # main block unequal trials
-        # narrow is better
-        pRTdata.at[i,'UE_s_20v50'] = rt[UE & t20v50 & safebest].mean()
-        pRTdata.at[i,'UE_s_50v80'] = rt[UE & t50v80 & safebest].mean()
-        pRTdata.at[i,'UE_s_20v80'] = rt[UE & t20v80 & safebest].mean()
-        
-        pRTdata.at[i,'UE_r_20v50'] = rt[UE & t20v50 & riskybest].mean()
-        pRTdata.at[i,'UE_r_50v80'] = rt[UE & t50v80 & riskybest].mean()
-        pRTdata.at[i,'UE_r_20v80'] = rt[UE & t20v80 & riskybest].mean()
-        
-        # main block equivaluable trials
-        pRTdata.at[i,'EQ20'] = rt[t20v20].mean()
-        pRTdata.at[i,'EQ50'] = rt[t50v50].mean()
-        pRTdata.at[i,'EQ80'] = rt[t80v80].mean()
                 
     xx=[]
     return pChoicedata , pRTdata, alldata
@@ -253,7 +298,6 @@ def plotChoice_or_RT(gaindata,lossdata,datatype,debug_):
     
     sns.set_theme(style="ticks")  
     palette = sns.color_palette("colorblind")
-
     
     gain_means = gaindata.mean()
     gain_sems  = gaindata.sem()
@@ -327,6 +371,8 @@ def plotChoice_or_RT(gaindata,lossdata,datatype,debug_):
      
     ax[1,0].legend()    
     ax[1,0].set_title('Unequal S vs R')
+    
+    
     ax[1,1].errorbar(choicex,gain_means.iloc[21:24],gain_sems.iloc[21:24],marker='o',color=cmap[9,:],label='gain')
     ax[1,1].errorbar(choicex,loss_means.iloc[21:24],loss_sems.iloc[21:24],marker='o',color=cmap[8,:],label='loss')
     ax[1,1].set_xticks(ticks=[1,2,3])
@@ -336,6 +382,7 @@ def plotChoice_or_RT(gaindata,lossdata,datatype,debug_):
     if datatype == 'choice':
        ax[1,1].set_ylim(0,1)
        ax[1,1].set_ylabel('p(Choose Risky)')
+       ax[1,1].plot(choicex,np.array([.5,.5,.5]),color='tab:gray')
     else:
        ax[1,1].set_ylabel('RT (ms)')
        ax[1,1].set_ylim(200,1000)
@@ -503,10 +550,15 @@ def win_stay_analysis(alldata, debug_):
                 nexttrial    = stim_tnums[nexttrial_ix]
                 stim_ws[i] = (humanchoice[nexttrial] == stimnum).astype(int)
             # END of looping over trials where a hit occurred
-            
+                        
             winstay[s,stimnum] = np.nanmean(stim_ws)  
         # END of looping over stimuli
-    # END of looping over subjects.
+    # END of looping over subjects
+    
+    
+    # set nans to zeros
+    winstay = np.nan_to_num(winstay)
+
     xx=[] # for setting a breakpoint
                
     return winstay
@@ -591,6 +643,10 @@ def lose_stay_analysis(alldata, debug_):
             losestay[s,stimnum] = np.nanmean(stim_ls)  
         # END of looping over stimuli
     # END of looping over subjects.
+    
+    # set nan to zeros
+    losestay = np.nan_to_num(losestay)
+
     xx=[] # for setting a breakpoint
                
     return losestay          
@@ -605,13 +661,16 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     if debug_:
         pdb.set_trace() 
         
-        
-        
+    
+    # define colormap for plotting 
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+    
     # get means and sems
-    gain_WS_mean = gain_winstay.mean(axis=0)
-    gain_WS_sem  = gain_winstay.std(axis=0) / np.sqrt(len(gain_winstay[:,1]))
-    loss_WS_mean = loss_winstay.mean(axis=0)
-    loss_WS_sem  = loss_winstay.std(axis=0) / np.sqrt(len(loss_winstay[:,1]))
+    gain_WS_mean = np.nanmean(gain_winstay,axis=0)
+    gain_WS_sem  = np.nanstd(gain_winstay,axis=0) / np.sqrt(len(gain_winstay[:,1]))
+    
+    loss_WS_mean = np.nanmean(loss_winstay,axis=0)
+    loss_WS_sem  = np.nanstd(loss_winstay,axis=0)/ np.sqrt(len(loss_winstay[:,1]))
     
     xvals = np.array([.2,.5,.8])
     
@@ -619,8 +678,8 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     fig.tight_layout(h_pad=4)
     
     plt.subplot(1, 2, 1)
-    plt.errorbar(xvals,gain_WS_mean[0:3],gain_WS_sem[0:3],label='gain, safe')
-    plt.errorbar(xvals,gain_WS_mean[3:7],gain_WS_sem[3:7],label='gain, risky')
+    plt.errorbar(xvals,gain_WS_mean[0:3],gain_WS_sem[0:3],label='gain, safe',color=cmap[1,:])
+    plt.errorbar(xvals,gain_WS_mean[3:7],gain_WS_sem[3:7],label='gain, risky',color=cmap[5,:])
     plt.xlabel('p(Gain)')
     plt.ylabel('p(Hit-Stay)')
     plt.xticks(xvals)
@@ -628,8 +687,8 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     plt.legend()
     
     plt.subplot(1, 2, 2)
-    plt.errorbar(xvals,loss_WS_mean[0:3],loss_WS_sem[0:3],label='loss, safe')
-    plt.errorbar(xvals,loss_WS_mean[3:7],loss_WS_sem[3:7],label='loss, risky')
+    plt.errorbar(xvals,loss_WS_mean[0:3],loss_WS_sem[0:3],label='loss, safe',color=cmap[0,:])
+    plt.errorbar(xvals,loss_WS_mean[3:7],loss_WS_sem[3:7],label='loss, risky',color=cmap[4,:])
     plt.xlabel('p(Loss)')
     plt.ylabel('p(Miss-Stay)')
     plt.xticks(xvals)
@@ -642,7 +701,9 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     # subject factor
     subj_ids = np.arange(len(gain_winstay))
     probs = np.array([1,2,3,1,2,3])
-    stim_type = np.array([1,1,1,2,2,2])
+    stim_type = np.array([1,1,1,-1,-1,-1])
+
+    #set NaN to zeros
      
     # initialize dataframe for lmemodel
     lmedata = pd.DataFrame()
@@ -653,8 +714,8 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     lmedata['subj'] = np.matlib.repmat(subj_ids,int(len(lmedata.gain_winstay)/len(subj_ids)),1).flatten()
 
     # now fit the linear mixed effects models
-    gain_mdl = smf.mixedlm('gain_winstay ~ prob*C(stim_type)', lmedata, groups=lmedata['subj']).fit()
-    loss_mdl = smf.mixedlm('loss_winstay ~ prob*C(stim_type)', lmedata, groups=lmedata['subj']).fit()
+    gain_mdl = smf.mixedlm('gain_winstay ~ prob*stim_type', lmedata, groups=lmedata['subj']).fit()
+    loss_mdl = smf.mixedlm('loss_winstay ~ prob*stim_type', lmedata, groups=lmedata['subj']).fit()
   
 # END of plotWinStay
 
@@ -669,7 +730,7 @@ def distRLmodel_MLE(alldata,debug_):
      
     alphavals = np.linspace(.1,1,int(1/.1))
     betas = np.linspace(1,40,40)
-    #betas = np.array([1]) # this is for debugging
+    betas = np.array([1]) # this is for debugging
     
     # get the combinations of alphas and betas
     #1st col = alphaplus, 2nd = alphaminus, 3rd = beta
@@ -815,3 +876,124 @@ def distRLmodel_MLE(alldata,debug_):
 
     return bestparams, bestAccOpt           
 # END of distRLmodel
+
+
+
+def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
+                           gain_choice, loss_choice,
+                           gain_bestAccOpt,loss_bestAccOpt,
+                           debug_):
+
+    # check if we want to debug
+    if debug_:
+        pdb.set_trace()     
+
+
+    # define colormap for plotting 
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+        
+    gain_EQ_bias = np.array([gain_choice.iloc[:,23], 
+                             gain_choice.iloc[:,24], 
+                             gain_choice.iloc[:,25] ]).mean(axis=0)
+    
+    loss_EQ_bias = np.array([loss_choice.iloc[:,23], 
+                             loss_choice.iloc[:,24], 
+                             loss_choice.iloc[:,25] ]).mean(axis=0)
+  
+    
+    # fit a linear mixed effect model
+    lmedata = pd.DataFrame()
+    lmedata['EQbias'] = np.concatenate([gain_EQ_bias,loss_EQ_bias])
+    lmedata['context'] = np.concatenate([np.ones(len(gain_EQ_bias)),np.ones(len(gain_EQ_bias))*-1])
+    lmedata['RLparam'] = np.concatenate([gain_bestparams[:,3],loss_bestparams[:,3]])
+    lmedata['subject'] = np.concatenate([np.arange(len(gain_EQ_bias)),np.arange(len(gain_EQ_bias))])
+    
+    # fit the model
+    RLxbias_mdl = smf.mixedlm('RLparam ~ context*EQbias', lmedata, groups=lmedata['subject']).fit()
+    
+    # extract intercept and beta for distRL quantile
+    params = RLxbias_mdl.params
+    intercept = params['Intercept']
+    slope     = params['EQbias']
+    
+    
+    # make figure and get plot
+    fig, ax = plt.subplots(1,3,figsize=(6, 2), dpi=300)
+    fig.tight_layout(h_pad=4)
+    
+    # plot model accuracy
+    gain_acc_mean = gain_bestAccOpt[:,0].mean()
+    gain_acc_sem = gain_bestAccOpt[:,0].std()/np.sqrt(len(gain_bestAccOpt[:,0]))
+    
+    loss_acc_mean = loss_bestAccOpt[:,0].mean()
+    loss_acc_sem = loss_bestAccOpt[:,0].std()/np.sqrt(len(loss_bestAccOpt[:,0]))
+
+    
+    ax[0].bar(1, gain_acc_mean, yerr=gain_acc_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[9,:])
+    
+    ax[0].bar(2, loss_acc_mean, yerr=loss_acc_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[8,:])
+
+    ax[0].plot([0,3],[.5,.5],color = 'tab:gray', linestyle = '--')
+    ax[0].set_ylabel('best model acc')
+    ax[0].set_xticks([1,2])
+    ax[0].set_ylim([.25,1])
+    ax[0].set_xlim([.5,2.5])
+    ax[0].set_xticklabels(['gain','loss'])
+    
+    # plot best quantiles
+    gain_q_mean = gain_bestparams[:,3].mean()
+    gain_q_sem = gain_bestparams[:,3].std()/np.sqrt(len(gain_bestparams[:,3]))
+    
+    loss_q_mean = loss_bestparams[:,3].mean()
+    loss_q_sem = loss_bestparams[:,3].std()/np.sqrt(len(loss_bestparams[:,3]))
+
+    
+    ax[1].bar(1, gain_q_mean, yerr=gain_q_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[9,:])
+    
+    ax[1].bar(2, loss_q_mean, yerr=loss_q_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[8,:])
+
+
+    ax[1].plot([0,3],[.5,.5],color = 'tab:gray', linestyle='--')
+
+    ax[1].set_xticks([1,2])
+    ax[1].set_ylim([0,1])
+    ax[1].set_xlim([.5,2.5])
+    ax[1].set_xticklabels(['gain','loss'])
+    ax[1].set_ylabel('best RL quantile')
+    
+    
+    # predict model quantile from bias
+    ax[2].scatter(gain_EQ_bias,gain_bestparams[:,3],color=cmap[9,:])
+    ax[2].scatter(loss_EQ_bias,loss_bestparams[:,3],color=cmap[8,:])
+    
+    # plot line of best fit
+    ax[2].plot(np.array([0,1]),np.array([0,1])*slope + intercept, 
+               color = 'tab:gray', linestyle = '--')
+    
+    
+    ax[2].set_xlabel('EQ bias')
+    ax[2].set_ylabel('dist RL quantile')
+    ax[2].set_xticks(ticks = np.array([0, .5, 1]))
+    ax[2].set_yticks(ticks = np.array([0, .5, 1]))
+    ax[2].set_xlim([0,1])
+    ax[2].set_ylim([0,1])
+
+    
+    
+    
+    
+    
+    xx=[] 
+
+
+# END of relate_distRL_to_EQbias
+
+
+
+
+
+
