@@ -25,7 +25,7 @@ loss_choice , loss_rt, loss_all = sr.load_processData(datadir,context = 'Loss',d
 
 
 # plot and analyze choice, rt, and survey data
-sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = False)
+sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = True)
 sr.plotChoice_or_RT(gain_rt,loss_rt,datatype='rt',debug_ = False)
 
 
