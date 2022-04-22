@@ -19,6 +19,7 @@ import itertools as it
 import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import math
+import scipy as sp
 
 
 
@@ -57,35 +58,35 @@ def load_processData(datadir,context,debug_):
         
         # get overall training performance so we can reject subjects
         all_train_ix = df.phase == "training"
+        all_exp_ix   = df.phase == "exp"
         all_safe_ix  = (df.imgLeftType == 'Safe') & (df.imgRightType == 'Safe')
         all_risky_ix = (df.imgLeftType == 'Risky') & (df.imgRightType == 'Risky')
         gain_ix = df.blkType == 'Gain'
         loss_ix = df.blkType == 'Loss'
         
-        # define the best options for the two contexts (gain/loss)
-        all_picked_best = np.zeros(len(gain_ix))
+        # define the best options 
+
+        all_picked_best = df.highProbSelected.astype(int)
         
-        if context == 'Loss':
-            all_picked_best = df.highProbSelected ==0
-        else:
-            all_picked_best = df.highProbSelected ==1
-            
-        all_picked_best = all_picked_best.astype(int)
-        
-        crit = 0.05
-        
-        
-        gain_safe_stats = pg.ttest(all_picked_best[all_train_ix & gain_ix & all_safe_ix],.5)
-        gain_safe_p = gain_safe_stats['p-val'][0]
-        gain_risky_stats = pg.ttest(all_picked_best[all_train_ix & gain_ix & all_risky_ix],.5)
-        gain_risky_p = gain_risky_stats['p-val'][0]
-        loss_safe_stats = pg.ttest(all_picked_best[all_train_ix & loss_ix & all_safe_ix],.5)
-        loss_safe_p = loss_safe_stats['p-val'][0]
-        loss_risky_stats = pg.ttest(all_picked_best[all_train_ix & loss_ix & all_risky_ix],.5)
-        loss_risky_p = loss_risky_stats['p-val'][0]
-        
-        if (gain_safe_p < crit) & (gain_risky_p < crit) & (loss_safe_p < crit) & (loss_risky_p < crit):
           
+        # collect indices of trials for the binomial test for subject exclusion
+        train_gain_safe_ix = all_train_ix & gain_ix & all_safe_ix
+        train_gain_risky_ix = all_train_ix & gain_ix & all_risky_ix
+        train_loss_safe_ix = all_train_ix & loss_ix & all_safe_ix
+        train_loss_risky_ix = all_train_ix & loss_ix & all_risky_ix
+        
+        
+        # get subject overall performance       
+        gs_perf = all_picked_best[all_exp_ix & gain_ix & all_safe_ix].mean()
+        gr_perf = all_picked_best[all_exp_ix & gain_ix & all_risky_ix].mean()
+        ls_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_safe_ix].mean()
+        lr_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_risky_ix].mean()
+        
+        # inclusion crit for overall perf
+        c = .58
+        
+        if (gs_perf > c) & (gr_perf > c) & (ls_perf > c) & (lr_perf > c):
+  
             # only assess the context specified as input argument
             df = df[df.blkType == context]
     
