@@ -42,8 +42,9 @@ def load_processData(datadir,context,debug_):
     # dataframe for RTs
     pRTdata = pd.DataFrame()
     
-    # dataframe for subject rejection
-    p_reject = pd.DataFrame()
+    # array of subject performance
+    p_perf = np.zeros((len(fnames),4))
+
 
     ctr = 0
     
@@ -65,16 +66,7 @@ def load_processData(datadir,context,debug_):
         loss_ix = df.blkType == 'Loss'
         
         # define the best options 
-
         all_picked_best = df.highProbSelected.astype(int)
-        
-          
-        # collect indices of trials for the binomial test for subject exclusion
-        train_gain_safe_ix = all_train_ix & gain_ix & all_safe_ix
-        train_gain_risky_ix = all_train_ix & gain_ix & all_risky_ix
-        train_loss_safe_ix = all_train_ix & loss_ix & all_safe_ix
-        train_loss_risky_ix = all_train_ix & loss_ix & all_risky_ix
-        
         
         # get subject overall performance       
         gs_perf = all_picked_best[all_exp_ix & gain_ix & all_safe_ix].mean()
@@ -82,10 +74,14 @@ def load_processData(datadir,context,debug_):
         ls_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_safe_ix].mean()
         lr_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_risky_ix].mean()
         
-        # inclusion crit for overall perf
-        c = .58
+        p_perf[i,:] = np.array([gs_perf,gr_perf,ls_perf,lr_perf])
+        overall_perf =p_perf.mean(axis=1)
         
-        if (gs_perf > c) & (gr_perf > c) & (ls_perf > c) & (lr_perf > c):
+        # inclusion crit for overall perf
+        c = 0.60
+        
+        #if (gs_perf > c) & (gr_perf > c) & (ls_perf > c) & (lr_perf > c):
+        if overall_perf[i] > c:
   
             # only assess the context specified as input argument
             df = df[df.blkType == context]
@@ -280,8 +276,55 @@ def load_processData(datadir,context,debug_):
         
                 
     xx=[]
-    return pChoicedata , pRTdata, alldata
+    return pChoicedata , pRTdata, alldata,p_perf
 # END of load_processData 
+
+
+def plot_mean_perf(p_perf, debug_):
+    
+
+    # check if we want to debug
+    if debug_:
+        pdb.set_trace() 
+        
+    # calculate different exclusison crit
+    
+    # exclude based on overall performance
+    overall_ix = p_perf.mean(axis=1) > .6  
+    
+    # exclude based on performance in each condition
+    cond_ix = np.sum(p_perf > .6, axis=1) > 3
+    
+    
+    
+    # create figure
+    fig, ax = plt.subplots(1,2,figsize=(6, 3), dpi=150)
+    fig.tight_layout(h_pad=4)
+  
+    ax[0].plot(np.transpose(p_perf[overall_ix,:]), linewidth=1, color='tab:gray', label='keep')
+    ax[0].plot(np.transpose(p_perf[~overall_ix,:]), linewidth=1, color='tab:red', label='exclude')
+    ax[0].set_ylim([.2,1])
+    ax[0].set_title('all trials > 60%')
+    ax[0].set_xticks(np.array([0,1,2,3]))
+    ax[0].set_yticks(np.array([.2,.4,.6,.8,1]))
+    ax[0].set_xticklabels(['G_S','G_R','L_S','L_R'])
+    ax[0].set_ylabel('% corr')
+    ax[0].set_xlabel('Condition')
+    
+    
+    ax[1].plot(np.transpose(p_perf[cond_ix,:]), linewidth=1, color='tab:gray', label='keep')
+    ax[1].plot(np.transpose(p_perf[~cond_ix,:]), linewidth=1, color='tab:red', label='exclude')
+    ax[1].set_ylim([.2,1])
+    ax[1].set_title('all conds > 60%')
+    ax[1].set_xticks(np.array([0,1,2,3]))
+    ax[1].set_yticks(np.array([.2,.4,.6,.8,1]))
+    ax[1].set_xticklabels(['G_S','G_R','L_S','L_R'])
+
+    
+    
+    xx=[]
+# END of plot_mean_perf
+
 
 
 
@@ -730,8 +773,10 @@ def distRLmodel_MLE(alldata,debug_):
         pdb.set_trace() 
      
     alphavals = np.linspace(.1,1,int(1/.1))
-    betas = np.linspace(1,40,40)
-    betas = np.array([1]) # this is for debugging
+    betas = np.linspace(1,20,10)
+    nparams = 3
+    #betas = np.array([1]) # this is for debugging
+    #nparams=2
     
     # get the combinations of alphas and betas
     #1st col = alphaplus, 2nd = alphaminus, 3rd = beta
@@ -741,7 +786,7 @@ def distRLmodel_MLE(alldata,debug_):
     subjIDs = alldata['vpNum'].unique()
     
     # initiialize output
-    bestparams = np.zeros(shape = (len(subjIDs),int(Qparams.shape[1])+1))
+    bestparams = np.zeros(shape = (len(subjIDs),int(Qparams.shape[1])+2))
     bestAccOpt = np.zeros(shape = (len(subjIDs),2))
     
     # iterate through each subject's data
@@ -853,12 +898,18 @@ def distRLmodel_MLE(alldata,debug_):
         # END of looping over parameters 
         
         # assess which parameter set was best 
-        bestix = paramAccs.argmax()
-        bestix = paramLL.argmax()
+        bestix = np.nanargmax(paramLL)
 
 
         bestparams[s,0:int(Qparams.shape[1])]=Qparams[bestix,:]
         bestparams[s,int(Qparams.shape[1])]  =Qparams[bestix,0] / (Qparams[bestix,0:2].sum())
+        
+        # calculate the BIC score
+        bic = np.log(len(sdata))*nparams -2*paramLL[bestix]
+        
+        # save bic score
+        bestparams[s,int(Qparams.shape[1])+1] = bic
+        
         
         bestAccOpt[s,0]  = paramAccs[bestix]
         bestAccOpt[s,1]  = paramOpt[bestix]

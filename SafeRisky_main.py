@@ -20,12 +20,21 @@ datadir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/data/'
 
 
 # load and process data
-gain_choice , gain_rt, gain_all = sr.load_processData(datadir,context = 'Gain',debug_ = False)
-loss_choice , loss_rt, loss_all = sr.load_processData(datadir,context = 'Loss',debug_ = False)
+gain_choice , gain_rt, gain_all, p_perf =sr.load_processData(datadir, 
+                                                             context='Gain',
+                                                             debug_=False)
+
+loss_choice , loss_rt, loss_all, p_perf =sr.load_processData(datadir, 
+                                                             context='Loss',
+                                                             debug_=False)
+
+# plot mean participant performance, show excluded subjects
+sr.plot_mean_perf(p_perf, debug_=True)
+
 
 
 # plot and analyze choice, rt, and survey data
-sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = True)
+sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = False)
 sr.plotChoice_or_RT(gain_rt,loss_rt,datatype='rt',debug_ = False)
 
 
@@ -50,4 +59,4 @@ loss_bestparams, loss_bestAccOpt = sr.distRLmodel_MLE(loss_all, debug_=False)
 sr.relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
                            gain_choice, loss_choice,
                            gain_bestAccOpt,loss_bestAccOpt,
-                           debug_=True)
+                           debug_=False)
