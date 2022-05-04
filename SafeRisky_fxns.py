@@ -75,13 +75,13 @@ def load_processData(datadir,context,debug_):
         lr_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_risky_ix].mean()
         
         p_perf[i,:] = np.array([gs_perf,gr_perf,ls_perf,lr_perf])
-        overall_perf =p_perf.mean(axis=1)
         
         # inclusion crit for overall perf
         c = 0.60
+    
         
         #if (gs_perf > c) & (gr_perf > c) & (ls_perf > c) & (lr_perf > c):
-        if overall_perf[i] > c:
+        if np.nanmean(p_perf[i,:]) > c:
   
             # only assess the context specified as input argument
             df = df[df.blkType == context]
@@ -143,13 +143,7 @@ def load_processData(datadir,context,debug_):
             # add these values to the dataframe
             df['imageNumberLeft'] = left_imgnum
             df['imageNumberRight'] = right_imgnum  
-            
-
-        
-            #-----------------------------
-            #    summarize each subject
-            #-----------------------------   
-        
+                    
             # what is the best option's type?
             besttype = np.empty((len(df.rt)))
                     
@@ -179,10 +173,11 @@ def load_processData(datadir,context,debug_):
             t20v20 = (df.probLeft ==.2) & (df.probRight ==.2)
             t50v50 = (df.probLeft ==.5) & (df.probRight ==.5)
             t80v80 = (df.probLeft ==.8) & (df.probRight ==.8)
-            
-
-                        
-
+                  
+            #-----------------------------
+            #    summarize each subject
+            #-----------------------------   
+        
             # get subject idnum, version, sex, and age
             pChoicedata.at[ctr,'vpnum']   = df.vpNum[0]
             pChoicedata.at[ctr,'version'] = df.version[0]
@@ -276,11 +271,11 @@ def load_processData(datadir,context,debug_):
         
                 
     xx=[]
-    return pChoicedata , pRTdata, alldata,p_perf
+    return pChoicedata , pRTdata, alldata, p_perf
 # END of load_processData 
 
 
-def plot_mean_perf(p_perf, debug_):
+def show_excluded_subjects(p_perf, debug_):
     
 
     # check if we want to debug
@@ -323,7 +318,319 @@ def plot_mean_perf(p_perf, debug_):
     
     
     xx=[]
+# END of show_excluded_subjects
+
+
+def plot_mean_perf(gain_data, loss_data, datatype, debug_):
+    
+    '''
+    This function plots and statistically assess choice and rt data by condition
+    '''
+    
+    # check if we want to debug
+    if debug_:
+        pdb.set_trace() 
+            
+
+    # collect the mean performance for the training trials
+    mean_gain_train = pd.DataFrame()
+    mean_gain_train['vpnum']   = gain_data.vpnum
+    mean_gain_train['context'] = gain_data.context
+    mean_gain_train['safe']    = np.nanmean(gain_data.iloc[:,5:8],axis=1)
+    mean_gain_train['risky']   = np.nanmean(gain_data.iloc[:,8:10],axis=1)
+    
+    mean_loss_train = pd.DataFrame()
+    mean_loss_train['vpnum']   = loss_data.vpnum
+    mean_loss_train['context'] = loss_data.context
+    mean_loss_train['safe']    = np.nanmean(loss_data.iloc[:,5:8],axis=1)
+    mean_loss_train['risky']   = np.nanmean(loss_data.iloc[:,8:10],axis=1)
+    
+    n_subs = len(mean_loss_train)
+    
+    # aggregate the train data for an rm_anova later
+    all_train = pd.DataFrame()
+    all_train['resp'] = np.concatenate([mean_gain_train['risky'], mean_gain_train['safe'],
+                                 mean_loss_train['risky'], mean_loss_train['safe'],])
+    
+    all_train['vpnum'] = np.concatenate([mean_gain_train['vpnum'],mean_gain_train['vpnum'],
+                            mean_loss_train['vpnum'],mean_loss_train['vpnum']])
+    
+    all_train['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                              np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_train['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*-1,
+                              np.ones([n_subs,]), np.ones([n_subs,])*-1])
+    
+    
+
+    
+    # collect the mean performance for the main block pure trials 
+    mean_gain = pd.DataFrame()
+    mean_gain['vpnum']   = gain_data.vpnum
+    mean_gain['context'] = gain_data.context
+    mean_gain['safe']    = np.nanmean(gain_data.iloc[:,11:14],axis=1)
+    mean_gain['risky']   = np.nanmean(gain_data.iloc[:,14:17],axis=1)
+    
+    mean_loss = pd.DataFrame()
+    mean_loss['vpnum']   = loss_data.vpnum
+    mean_loss['context'] = loss_data.context
+    mean_loss['safe']    = np.nanmean(loss_data.iloc[:,11:14],axis=1)
+    mean_loss['risky']   = np.nanmean(loss_data.iloc[:,14:17],axis=1)
+    
+    # aggregate the main block data
+    all_main = pd.DataFrame()
+    all_main['resp'] = np.concatenate([mean_gain['risky'], mean_gain['safe'],
+                                 mean_loss['risky'], mean_loss['safe'],])
+    
+    all_main['vpnum'] = np.concatenate([mean_gain['vpnum'],mean_gain['vpnum'],
+                            mean_loss['vpnum'],mean_loss['vpnum']])
+    
+    all_main['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                              np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_main['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*-1,
+                              np.ones([n_subs,]), np.ones([n_subs,])*-1])
+    
+    # collect the mean performance for the main block UE trials 
+    mean_gain_UE = pd.DataFrame()
+    mean_gain_UE['vpnum']   = gain_data.vpnum
+    mean_gain_UE['context'] = gain_data.context
+    mean_gain_UE['safe']    = np.nanmean(gain_data.iloc[:,17:20],axis=1)
+    mean_gain_UE['risky']   = np.nanmean(gain_data.iloc[:,20:23],axis=1)
+    
+    mean_loss_UE = pd.DataFrame()
+    mean_loss_UE['vpnum']   = loss_data.vpnum
+    mean_loss_UE['context'] = loss_data.context
+    mean_loss_UE['safe']    = np.nanmean(loss_data.iloc[:,17:20],axis=1)
+    mean_loss_UE['risky']   = np.nanmean(loss_data.iloc[:,20:23],axis=1)
+    
+    # aggregate the main UE trials data
+    all_UE = pd.DataFrame()
+    all_UE['resp'] = np.concatenate([mean_gain_UE['risky'], mean_gain_UE['safe'],
+                                 mean_loss_UE['risky'], mean_loss_UE['safe'],])
+    
+    all_UE['vpnum'] = np.concatenate([mean_gain_UE['vpnum'],mean_gain_UE['vpnum'],
+                            mean_loss_UE['vpnum'],mean_loss_UE['vpnum']])
+    
+    all_UE['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                              np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_UE['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*-1,
+                              np.ones([n_subs,]), np.ones([n_subs,])*-1])
+
+    
+    # plot data
+    # define the color map
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+
+    fig = plt.figure(figsize=(8, 2), dpi=300)
+
+    gs = fig.add_gridspec(1,12)
+    ax0 = fig.add_subplot(gs[0: 2])
+    ax1 = fig.add_subplot(gs[2: 4])
+    ax2 = fig.add_subplot(gs[4: 6])
+    ax3 = fig.add_subplot(gs[8: 12])
+    
+    xlims = np.array([.8,2.2])
+    
+    if datatype == 'choice':
+        ylims = np.array([0,1])
+        eq_ylim = np.array([.2,.8])
+        ylbl= 'p(Choose Best)'
+        eq_ylbl = 'p(Choose Risky)'
+        ytcks = np.array([.0,.5,1])
+        eq_ytcks = np.array([.2, .5, .8])
+        
+    else:
+        ylims = np.array([300,900])
+        ylbl = 'RT (ms)'
+        eq_ylim = ylims
+        eq_ylbl = ylbl
+        ytcks = np.array([300, 600, 900])
+        eq_ytcks = ytcks
+
+    
+    # gain_train means
+    gain_train_y = np.array([mean_gain_train.safe.mean(),
+                             mean_gain_train.risky.mean()])
+    
+    gain_train_err = np.array([mean_gain_train.safe.sem(),
+                               mean_gain_train.risky.sem()])
+    
+    # loss_train means
+    loss_train_y = np.array([mean_loss_train.safe.mean(),
+                             mean_loss_train.risky.mean()])
+    
+    loss_train_err = np.array([mean_loss_train.safe.sem(),
+                               mean_loss_train.risky.sem()])
+    
+    
+    ax0.errorbar(np.array([1,2]), gain_train_y, gain_train_err,
+                   color = cmap[1,:],capsize=0, linewidth=2, marker='.')
+    
+    ax0.errorbar(np.array([1,2]), loss_train_y, loss_train_err,
+                   color = cmap[5,:],capsize=0,linewidth=2, marker='.')
+    
+    ax0.set_ylim(ylims)
+    ax0.set_yticks(ytcks)
+    ax0.set_xticks([1,2])
+    ax0.set_xlim(xlims)
+    ax0.set_xticklabels(['S', 'R'])
+    ax0.legend(['Gain', 'Loss'])
+    ax0.set_ylabel(ylbl)
+    ax0.set_title('Training')
+    ax0.spines['top'].set_visible(False)
+    ax0.spines['right'].set_visible(False)
+    
+    # gain means
+    gain_y = np.array([mean_gain.safe.mean(),
+                             mean_gain.risky.mean()])
+    
+    gain_err = np.array([mean_gain.safe.sem(),
+                               mean_gain.risky.sem()])
+    
+    # loss means
+    loss_y = np.array([mean_loss.safe.mean(),
+                             mean_loss.risky.mean()])
+    
+    loss_err = np.array([mean_loss.safe.sem(),
+                         mean_loss.risky.sem()])
+    
+    
+    ax1.errorbar(np.array([1,2]), gain_y, gain_err,
+                   color = cmap[1,:],capsize=0, linewidth=2, marker='.')
+    
+    ax1.errorbar(np.array([1,2]), loss_y, loss_err,
+                   color = cmap[5,:],capsize=0,linewidth=2, marker='.')
+    
+    ax1.set_ylim(ylims)
+    ax1.get_yaxis().set_visible(False)
+    ax1.set_xticks([1,2])
+    ax1.set_xlim(xlims)
+    ax1.set_xticklabels(['S', 'R'])
+    ax1.set_title('Pure')
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    ax1.spines['left'].set_visible(False)
+    
+    # gain means
+    UE_gain_y = np.array([mean_gain_UE.safe.mean(),
+                          mean_gain_UE.risky.mean()])
+    
+    UE_gain_err = np.array([mean_gain_UE.safe.sem(),
+                            mean_gain_UE.risky.sem()])
+    
+    # loss means
+    UE_loss_y = np.array([mean_loss_UE.safe.mean(),
+                          mean_loss_UE.risky.mean()])
+    
+    UE_loss_err = np.array([mean_loss_UE.safe.sem(),
+                            mean_loss_UE.risky.sem()])
+    
+    
+    ax2.errorbar(np.array([1,2]), UE_gain_y, UE_gain_err,
+                   color = cmap[1,:],capsize=0, linewidth=2, marker='.')
+    
+    ax2.errorbar(np.array([1,2]), UE_loss_y, UE_loss_err,
+                   color = cmap[5,:],capsize=0,linewidth=2, marker='.')
+    
+    ax2.set_ylim(ylims)
+    ax2.set_xticks([1,2])
+    ax2.set_xlim(xlims)
+    ax2.get_yaxis().set_visible(False)
+    ax2.set_xticklabels(['S>R', 'R>S'])
+    ax2.set_title('Unequal S vs R')
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    ax2.spines['left'].set_visible(False)
+    
+    
+     
+    # now get the EQ Safe vs Risky trials
+    gain_EQ_y = np.array([gain_data.EQ20.mean(),
+                          gain_data.EQ50.mean(),
+                          gain_data.EQ80.mean()])
+    
+    gain_EQ_yerr = np.array([gain_data.EQ20.sem(),
+                             gain_data.EQ50.sem(),
+                             gain_data.EQ80.sem()])
+    
+    loss_EQ_y = np.array([loss_data.EQ20.mean(),
+                          loss_data.EQ50.mean(),
+                          loss_data.EQ80.mean()])
+    
+    loss_EQ_yerr = np.array([loss_data.EQ20.sem(),
+                             loss_data.EQ50.sem(),
+                             loss_data.EQ80.sem()])
+    
+    all_EQ=pd.DataFrame()
+    all_EQ['resp'] = np.concatenate([gain_data.EQ20,gain_data.EQ50,gain_data.EQ80,
+                                     loss_data.EQ20,loss_data.EQ50,loss_data.EQ80])
+    
+    all_EQ['vpnum'] = np.concatenate([mean_gain_UE['vpnum'],mean_gain_UE['vpnum'],
+                                      mean_gain_UE['vpnum'],mean_loss_UE['vpnum'],
+                                      mean_loss_UE['vpnum'],mean_loss_UE['vpnum']])
+    
+    all_EQ['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                                        np.ones([n_subs,]), np.ones([n_subs,])*-1, 
+                                        np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_EQ['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*2,
+                                     np.ones([n_subs,])*3, np.ones([n_subs,]),
+                                     np.ones([n_subs,])*2,np.ones([n_subs,])*3])
+    
+    
+    
+    ax3.errorbar(np.array([1,2,3]),gain_EQ_y,gain_EQ_yerr,
+                   color=cmap[1,:], capsize=0, linewidth=2, marker='.')
+    
+    ax3.errorbar(np.array([1,2,3]),loss_EQ_y,loss_EQ_yerr,
+                   color=cmap[5,:], capsize=0, linewidth=2, marker='.')
+    
+    ax3.set_ylim(eq_ylim)
+    ax3.set_ylabel(eq_ylbl)
+    ax3.set_xticks([1,2,3])
+    ax3.set_yticks(eq_ytcks)
+    ax3.set_xticklabels(['EQ20', 'EQ50', 'EQ80'])
+    ax3.set_title('Equal S vs R')
+
+    
+ #-----------------------
+ #         STATS
+ #-----------------------   
+
+ # training
+    train_stats = pg.rm_anova(data = all_train,
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+ # pure trials 
+    pure_stats = pg.rm_anova(data = all_main,
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+ # UE trials 
+    pure_stats = pg.rm_anova(data = all_UE,
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+ # EQ trials
+    EQ_stats = pg.rm_anova(data = all_EQ,
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+
+    # set break point here to check stats
+    xx=[]
+    
 # END of plot_mean_perf
+    
+
+
 
 
 
@@ -722,8 +1029,10 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     fig.tight_layout(h_pad=4)
     
     plt.subplot(1, 2, 1)
-    plt.errorbar(xvals,gain_WS_mean[0:3],gain_WS_sem[0:3],label='gain, safe',color=cmap[1,:])
-    plt.errorbar(xvals,gain_WS_mean[3:7],gain_WS_sem[3:7],label='gain, risky',color=cmap[5,:])
+    plt.errorbar(xvals,gain_WS_mean[0:3],gain_WS_sem[0:3],label='gain, safe',
+                 color=cmap[5,:], LineWidth = 2, marker = '.')
+    plt.errorbar(xvals,gain_WS_mean[3:7],gain_WS_sem[3:7],label='gain, risky',
+                 color=cmap[4,:], LineWidth = 2, marker = '.')
     plt.xlabel('p(Gain)')
     plt.ylabel('p(Hit-Stay)')
     plt.xticks(xvals)
@@ -731,8 +1040,10 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     plt.legend()
     
     plt.subplot(1, 2, 2)
-    plt.errorbar(xvals,loss_WS_mean[0:3],loss_WS_sem[0:3],label='loss, safe',color=cmap[0,:])
-    plt.errorbar(xvals,loss_WS_mean[3:7],loss_WS_sem[3:7],label='loss, risky',color=cmap[4,:])
+    plt.errorbar(xvals,loss_WS_mean[0:3],loss_WS_sem[0:3],label='loss, safe',
+                 color=cmap[1,:], LineWidth = 2, marker = '.')
+    plt.errorbar(xvals,loss_WS_mean[3:7],loss_WS_sem[3:7],label='loss, risky',
+                 color=cmap[0,:], LineWidth = 2, marker = '.')
     plt.xlabel('p(Loss)')
     plt.ylabel('p(Miss-Stay)')
     plt.xticks(xvals)
@@ -772,11 +1083,11 @@ def distRLmodel_MLE(alldata,debug_):
     if debug_:
         pdb.set_trace() 
      
-    alphavals = np.linspace(.1,1,int(1/.1))
-    betas = np.linspace(1,20,10)
-    nparams = 3
-    #betas = np.array([1]) # this is for debugging
-    #nparams=2
+    alphavals = np.linspace(.05,1,int(1/.05))
+    #betas = np.linspace(1,40,20)
+    #nparams = 3
+    betas = np.array([1]) # this is for debugging
+    nparams=2
     
     # get the combinations of alphas and betas
     #1st col = alphaplus, 2nd = alphaminus, 3rd = beta
@@ -961,7 +1272,7 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     lmedata['subject'] = np.concatenate([np.arange(len(gain_EQ_bias)),np.arange(len(gain_EQ_bias))])
     
     # fit the model
-    RLxbias_mdl = smf.mixedlm('RLparam ~ context*EQbias', lmedata, groups=lmedata['subject']).fit()
+    RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias', lmedata, groups=lmedata['subject']).fit()
     
     # extract intercept and beta for distRL quantile
     params = RLxbias_mdl.params
@@ -969,9 +1280,16 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     slope     = params['EQbias']
     
     
-    # make figure and get plot
-    fig, ax = plt.subplots(1,3,figsize=(6, 2), dpi=300)
-    fig.tight_layout(h_pad=4)
+    # make figure and get plot    
+    fig = plt.figure(figsize=(8, 2), dpi=300)
+
+    gs = fig.add_gridspec(1,12)
+    ax0 = fig.add_subplot(gs[0: 2])
+    ax1 = fig.add_subplot(gs[3: 5])
+    ax2 = fig.add_subplot(gs[6: 9])
+ 
+    
+    
     
     # plot model accuracy
     gain_acc_mean = gain_bestAccOpt[:,0].mean()
@@ -981,18 +1299,19 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     loss_acc_sem = loss_bestAccOpt[:,0].std()/np.sqrt(len(loss_bestAccOpt[:,0]))
 
     
-    ax[0].bar(1, gain_acc_mean, yerr=gain_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[9,:])
+    ax0.bar(1, gain_acc_mean, yerr=gain_acc_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[1,:])
     
-    ax[0].bar(2, loss_acc_mean, yerr=loss_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[8,:])
+    ax0.bar(2, loss_acc_mean, yerr=loss_acc_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[5,:])
 
-    ax[0].plot([0,3],[.5,.5],color = 'tab:gray', linestyle = '--')
-    ax[0].set_ylabel('best model acc')
-    ax[0].set_xticks([1,2])
-    ax[0].set_ylim([.25,1])
-    ax[0].set_xlim([.5,2.5])
-    ax[0].set_xticklabels(['gain','loss'])
+    ax0.plot([0,3],[.5,.5],color = 'tab:gray', linestyle = '--')
+    ax0.set_ylabel('Model Accuracy')
+    ax0.set_xticks([1,2])
+    ax0.set_ylim([0,1])
+    ax0.set_yticks([0, .5, 1])
+    ax0.set_xlim([.5,2.5])
+    ax0.set_xticklabels(['Gain','Loss'])
     
     # plot best quantiles
     gain_q_mean = gain_bestparams[:,3].mean()
@@ -1002,37 +1321,36 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     loss_q_sem = loss_bestparams[:,3].std()/np.sqrt(len(loss_bestparams[:,3]))
 
     
-    ax[1].bar(1, gain_q_mean, yerr=gain_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[9,:])
+    ax1.bar(1, gain_q_mean, yerr=gain_q_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[1,:])
     
-    ax[1].bar(2, loss_q_mean, yerr=loss_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[8,:])
+    ax1.bar(2, loss_q_mean, yerr=loss_q_sem, align='center', alpha=1, 
+              ecolor='black', capsize=0, color = cmap[5,:])
 
 
-    ax[1].plot([0,3],[.5,.5],color = 'tab:gray', linestyle='--')
-
-    ax[1].set_xticks([1,2])
-    ax[1].set_ylim([0,1])
-    ax[1].set_xlim([.5,2.5])
-    ax[1].set_xticklabels(['gain','loss'])
-    ax[1].set_ylabel('best RL quantile')
+    ax1.set_xticks([1,2])
+    ax1.set_ylim([0,1])
+    ax1.set_yticks([0, .5, 1])
+    ax1.set_xlim([.5,2.5])
+    ax1.set_xticklabels(['Gain','Loss'])
+    ax1.set_ylabel('distRL Quantile')
     
     
     # predict model quantile from bias
-    ax[2].scatter(gain_EQ_bias,gain_bestparams[:,3],color=cmap[9,:])
-    ax[2].scatter(loss_EQ_bias,loss_bestparams[:,3],color=cmap[8,:])
+    ax2.scatter(gain_EQ_bias,gain_bestparams[:,3],color=cmap[1,:], s =20)
+    ax2.scatter(loss_EQ_bias,loss_bestparams[:,3],color=cmap[5,:], s =20)
     
     # plot line of best fit
-    ax[2].plot(np.array([0,1]),np.array([0,1])*slope + intercept, 
-               color = 'tab:gray', linestyle = '--')
+    ax2.plot(np.array([0,1]),np.array([0,1])*slope + intercept, 
+               color = 'black', linewidth=2)
     
     
-    ax[2].set_xlabel('EQ bias')
-    ax[2].set_ylabel('dist RL quantile')
-    ax[2].set_xticks(ticks = np.array([0, .5, 1]))
-    ax[2].set_yticks(ticks = np.array([0, .5, 1]))
-    ax[2].set_xlim([0,1])
-    ax[2].set_ylim([0,1])
+    ax2.set_xlabel('EQ bias')
+    ax2.set_ylabel('distRL Quantile')
+    ax2.set_xticks(ticks = np.array([0, .5, 1]))
+    ax2.set_yticks(ticks = np.array([0, .5, 1]))
+    ax2.set_xlim([0,1])
+    ax2.set_ylim([0,1])
 
     
     
