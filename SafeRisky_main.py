@@ -29,13 +29,16 @@ loss_choice , loss_rt, loss_all, p_perf =sr.load_processData(datadir,
                                                              debug_=False)
 
 # plot mean participant performance, show excluded subjects
-sr.plot_mean_perf(p_perf, debug_=True)
+sr.show_excluded_subjects(p_perf, debug_=False)
+
+# plot high-level summary of all conditions 
+sr.plot_mean_perf(gain_choice, loss_choice, datatype='choice', debug_=False)
+sr.plot_mean_perf(gain_rt, loss_rt, datatype='rt', debug_=False)
 
 
-
-# plot and analyze choice, rt, and survey data
-sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = False)
-sr.plotChoice_or_RT(gain_rt,loss_rt,datatype='rt',debug_ = False)
+# (DEPRECATED) break out choice and rt data by individual condition 
+#sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice',debug_ = False)
+#sr.plotChoice_or_RT(gain_rt,loss_rt,datatype='rt',debug_ = False)
 
 
 # do win-stay analysis for data from both contexts
