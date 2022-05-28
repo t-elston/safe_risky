@@ -20,7 +20,7 @@ import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import math
 import scipy as sp
-
+import utils as ut
 
 
 def load_processData(datadir,context,debug_):
@@ -1030,9 +1030,9 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     
     plt.subplot(1, 2, 1)
     plt.errorbar(xvals,gain_WS_mean[0:3],gain_WS_sem[0:3],label='gain, safe',
-                 color=cmap[5,:], LineWidth = 2, marker = '.')
+                 color=cmap[1,:], LineWidth = 2, marker = '.')
     plt.errorbar(xvals,gain_WS_mean[3:7],gain_WS_sem[3:7],label='gain, risky',
-                 color=cmap[4,:], LineWidth = 2, marker = '.')
+                 color=cmap[0,:], LineWidth = 2, marker = '.')
     plt.xlabel('p(Gain)')
     plt.ylabel('p(Hit-Stay)')
     plt.xticks(xvals)
@@ -1041,9 +1041,9 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
     
     plt.subplot(1, 2, 2)
     plt.errorbar(xvals,loss_WS_mean[0:3],loss_WS_sem[0:3],label='loss, safe',
-                 color=cmap[1,:], LineWidth = 2, marker = '.')
+                 color=cmap[5,:], LineWidth = 2, marker = '.')
     plt.errorbar(xvals,loss_WS_mean[3:7],loss_WS_sem[3:7],label='loss, risky',
-                 color=cmap[0,:], LineWidth = 2, marker = '.')
+                 color=cmap[4,:], LineWidth = 2, marker = '.')
     plt.xlabel('p(Loss)')
     plt.ylabel('p(Miss-Stay)')
     plt.xticks(xvals)
@@ -1075,15 +1075,13 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
 # END of plotWinStay
 
 
-
-
 def distRLmodel_MLE(alldata,debug_):
     
     # check if we want to debug
     if debug_:
-        pdb.set_trace() 
+        breakpoint()
      
-    alphavals = np.linspace(.05,1,int(1/.05))
+    alphavals = np.linspace(.1,1,int(1/.1))
     #betas = np.linspace(1,40,20)
     #nparams = 3
     betas = np.array([1]) # this is for debugging
@@ -1096,9 +1094,10 @@ def distRLmodel_MLE(alldata,debug_):
     # get a subject's data
     subjIDs = alldata['vpNum'].unique()
     
-    # initiialize output
+    # initialize output
     bestparams = np.zeros(shape = (len(subjIDs),int(Qparams.shape[1])+2))
     bestAccOpt = np.zeros(shape = (len(subjIDs),2))
+    best_Qtbl  = np.zeros(shape = (len(subjIDs),6))
     
     # iterate through each subject's data
     for s in range(len(subjIDs)):
@@ -1109,6 +1108,7 @@ def distRLmodel_MLE(alldata,debug_):
         # accuracies for each parameter set
         paramAccs = np.zeros(shape = len(Qparams))
         paramOpt  = np.zeros(shape = len(Qparams))
+        paramQtbl = np.zeros(shape = (len(Qparams),6))
         
         # log likelihoods for each param set
         paramLL = np.zeros(shape = len(Qparams))
@@ -1138,8 +1138,7 @@ def distRLmodel_MLE(alldata,debug_):
             # initialilze a set of log likelihoods for these trials
             this_param_LLs = np.zeros(len(sdata))
 
-                
-            print('Subject#: '+ str(s) + ', Param#: ' + str(a))
+            print('\rSubject#: '+str(s) + ', Param#: '+ str(a)+' / '+str(len(Qparams))+'   ', end='')
                   
             # initialize a Qtable
             Qtbl = np.zeros(6) 
@@ -1156,13 +1155,21 @@ def distRLmodel_MLE(alldata,debug_):
                 # get some basic info about the trial            
                 tOutcome = sdata.rewardPoints[t]
 
-                # get likelihood that the Qlearner would pick the left option
-                softmax = (np.exp(beta*Qtbl[stim[t,0]])) / (np.exp(beta*Qtbl[stim[t,0]]) + np.exp(beta*Qtbl[stim[t,1]]) )
+                # get likelihood that the Qlearner would pick the left option                            
+                softmax = 1/(1+np.exp(beta*(Qtbl[stim[t,1]]-Qtbl[stim[t,0]])))
+                
+                if softmax == 1:
+                    softmax = 0.99999999
+                    
+                if softmax ==0:
+                    softmax = 0.00000001
                 
                 # get likelihood that Qlearner picks same as human
-                fit_likelihood = (np.exp(beta*Qtbl[humanchoice[t]])) / (np.exp(beta*Qtbl[stim[t,0]]) + np.exp(beta*Qtbl[stim[t,1]]) )
-
-                
+                if humanchoiceside[t] == 0: # if they went left
+                    fit_likelihood = softmax
+                else:
+                    fit_likelihood = 1-softmax
+                    
                 this_param_LLs[t] = np.log(fit_likelihood)
                 
                 # does the TD learner pick left?
@@ -1204,14 +1211,14 @@ def distRLmodel_MLE(alldata,debug_):
             # how optimal did the learner perform?
             paramOpt[a] = Qoptimalchoice.mean() 
             
-             
+            paramQtbl[a,:] = Qtbl
+            
             xx=[]             
         # END of looping over parameters 
         
         # assess which parameter set was best 
         bestix = np.nanargmax(paramLL)
-
-
+        
         bestparams[s,0:int(Qparams.shape[1])]=Qparams[bestix,:]
         bestparams[s,int(Qparams.shape[1])]  =Qparams[bestix,0] / (Qparams[bestix,0:2].sum())
         
@@ -1221,9 +1228,14 @@ def distRLmodel_MLE(alldata,debug_):
         # save bic score
         bestparams[s,int(Qparams.shape[1])+1] = bic
         
-        
+        # store accuracies
         bestAccOpt[s,0]  = paramAccs[bestix]
         bestAccOpt[s,1]  = paramOpt[bestix]
+        
+        # store best Qtbl
+        best_Qtbl[s,:] = paramQtbl[bestix,:]
+        
+        
         
         """
         paramgrid = paramLL.reshape(10,10)
@@ -1237,7 +1249,7 @@ def distRLmodel_MLE(alldata,debug_):
 
     # END of looping through subjects  
 
-    return bestparams, bestAccOpt           
+    return bestparams, bestAccOpt, best_Qtbl           
 # END of distRLmodel
 
 
@@ -1335,7 +1347,6 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     ax1.set_xticklabels(['Gain','Loss'])
     ax1.set_ylabel('distRL Quantile')
     
-    
     # predict model quantile from bias
     ax2.scatter(gain_EQ_bias,gain_bestparams[:,3],color=cmap[1,:], s =20)
     ax2.scatter(loss_EQ_bias,loss_bestparams[:,3],color=cmap[5,:], s =20)
@@ -1351,16 +1362,58 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     ax2.set_yticks(ticks = np.array([0, .5, 1]))
     ax2.set_xlim([0,1])
     ax2.set_ylim([0,1])
-
-    
-    
-    
-    
-    
+  
     xx=[] 
-
-
 # END of relate_distRL_to_EQbias
+
+def q_learner_choice_bias(gain_params, gain_Qtbl, loss_params, loss_Qtbl, debug_):
+    
+    if debug_:
+        breakpoint()
+    
+    n_subjs = len(gain_Qtbl)
+    
+    # initialize arrays
+    gain_bias = np.zeros((n_subjs,3))
+    loss_bias = np.zeros((n_subjs,3))
+
+    # loop over each subject and get their choice bias according to a softmax
+    for i in range(n_subjs):
+        
+        gain_beta = gain_params[i,2]
+        loss_beta = loss_params[i,2]
+        
+        for prob in range(3):
+            
+            # likelihood of choosing risky option
+            gain_bias[i,prob] = ut.compute_softmax(gain_Qtbl[i,prob+3],
+                                                   gain_Qtbl[i,prob], 
+                                                   gain_beta)
+            
+            loss_bias[i,prob] = ut.compute_softmax(loss_Qtbl[i,prob+3],
+                                                   loss_Qtbl[i,prob], 
+                                                   loss_beta)
+            
+            xx=[]
+            
+                                
+    
+    gain_Qdiff = gain_Qtbl[:,3:] - np.array([24, 30,36])
+    loss_Qdiff = loss_Qtbl[:,3:] - (np.array([24, 30,36]))*-1
+
+    gain_mean = gain_Qdiff.mean(axis=0)
+    loss_mean = loss_Qdiff.mean(axis=0)
+    
+    gain_sem = (gain_Qdiff.std(axis=0) / np.sqrt(len(gain_Qdiff)))
+    loss_sem = (loss_Qdiff.std(axis=0) / np.sqrt(len(loss_Qdiff)))
+
+    plt.errorbar([20,50,80],gain_mean,gain_sem)
+    plt.errorbar([20,50,80],loss_mean,loss_sem)
+
+    
+    xx=[]
+    
+# END of q_learner_choice_bias
 
 
 
