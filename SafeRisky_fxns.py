@@ -23,12 +23,7 @@ import scipy as sp
 import utils as ut
 
 
-def load_processData(datadir,context,debug_):
-    
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
-    
+def load_processData(datadir,context): 
         
     # get files names with path
     fnames = [os.path.join(datadir, _) for _ in os.listdir(datadir) if _.endswith('.csv')]
@@ -186,38 +181,38 @@ def load_processData(datadir,context,debug_):
             pChoicedata.at[ctr,'sex']     = df.gender[0]
             
             # look at training choice data
-            pChoicedata.at[ctr,'t_s_20v50'] = picked_best[trainix & t20v50 & safe_ix].mean()
-            pChoicedata.at[ctr,'t_s_50v80'] = picked_best[trainix & t50v80 & safe_ix].mean()
-            pChoicedata.at[ctr,'t_s_20v80'] = picked_best[trainix & t20v80 & safe_ix].mean()
+            pChoicedata.at[ctr,'t_s_20v50'] = np.nanmean(picked_best[trainix & t20v50 & safe_ix])
+            pChoicedata.at[ctr,'t_s_50v80'] = np.nanmean(picked_best[trainix & t50v80 & safe_ix])
+            pChoicedata.at[ctr,'t_s_20v80'] = np.nanmean(picked_best[trainix & t20v80 & safe_ix])
             
-            pChoicedata.at[ctr,'t_r_20v50'] = picked_best[trainix & t20v50 & risky_ix].mean()
-            pChoicedata.at[ctr,'t_r_50v80'] = picked_best[trainix & t50v80 & risky_ix].mean()
-            pChoicedata.at[ctr,'t_r_20v80'] = picked_best[trainix & t20v80 & risky_ix].mean()
+            pChoicedata.at[ctr,'t_r_20v50'] = np.nanmean(picked_best[trainix & t20v50 & risky_ix])
+            pChoicedata.at[ctr,'t_r_50v80'] = np.nanmean(picked_best[trainix & t50v80 & risky_ix])
+            pChoicedata.at[ctr,'t_r_20v80'] = np.nanmean(picked_best[trainix & t20v80 & risky_ix])
     
             # main block pure trials
-            pChoicedata.at[ctr,'s_20v50'] = picked_best[testix & t20v50 & safe_ix].mean()
-            pChoicedata.at[ctr,'s_50v80'] = picked_best[testix & t50v80 & safe_ix].mean()
-            pChoicedata.at[ctr,'s_20v80'] = picked_best[testix & t20v80 & safe_ix].mean()
+            pChoicedata.at[ctr,'s_20v50'] = np.nanmean(picked_best[testix & t20v50 & safe_ix])
+            pChoicedata.at[ctr,'s_50v80'] = np.nanmean(picked_best[testix & t50v80 & safe_ix])
+            pChoicedata.at[ctr,'s_20v80'] = np.nanmean(picked_best[testix & t20v80 & safe_ix])
             
-            pChoicedata.at[ctr,'r_20v50'] = picked_best[testix & t20v50 & risky_ix].mean()
-            pChoicedata.at[ctr,'r_50v80'] = picked_best[testix & t50v80 & risky_ix].mean()
-            pChoicedata.at[ctr,'r_20v80'] = picked_best[testix & t20v80 & risky_ix].mean()
+            pChoicedata.at[ctr,'r_20v50'] = np.nanmean(picked_best[testix & t20v50 & risky_ix])
+            pChoicedata.at[ctr,'r_50v80'] = np.nanmean(picked_best[testix & t50v80 & risky_ix])
+            pChoicedata.at[ctr,'r_20v80'] = np.nanmean(picked_best[testix & t20v80 & risky_ix])
             
             # main block unequal trials
             # safe is better
-            pChoicedata.at[ctr,'UE_s_20v50'] = picked_best[UE & t20v50 & riskybest].mean()
-            pChoicedata.at[ctr,'UE_s_50v80'] = picked_best[UE & t50v80 & riskybest].mean()
-            pChoicedata.at[ctr,'UE_s_20v80'] = picked_best[UE & t20v80 & riskybest].mean()
+            pChoicedata.at[ctr,'UE_s_20v50'] = np.nanmean(picked_best[UE & t20v50 & riskybest])
+            pChoicedata.at[ctr,'UE_s_50v80'] = np.nanmean(picked_best[UE & t50v80 & riskybest])
+            pChoicedata.at[ctr,'UE_s_20v80'] = np.nanmean(picked_best[UE & t20v80 & riskybest])
             
             # risky is better
-            pChoicedata.at[ctr,'UE_r_20v50'] = picked_best[UE & t20v50 & safebest].mean()
-            pChoicedata.at[ctr,'UE_r_50v80'] = picked_best[UE & t50v80 & safebest].mean()
-            pChoicedata.at[ctr,'UE_r_20v80'] = picked_best[UE & t20v80 & safebest].mean()
+            pChoicedata.at[ctr,'UE_r_20v50'] = np.nanmean(picked_best[UE & t20v50 & safebest])
+            pChoicedata.at[ctr,'UE_r_50v80'] = np.nanmean(picked_best[UE & t50v80 & safebest])
+            pChoicedata.at[ctr,'UE_r_20v80'] = np.nanmean(picked_best[UE & t20v80 & safebest])
             
             # main block equivaluable trials
-            pChoicedata.at[ctr,'EQ20'] = picked_risky[t20v20].mean()
-            pChoicedata.at[ctr,'EQ50'] = picked_risky[t50v50].mean()
-            pChoicedata.at[ctr,'EQ80'] = picked_risky[t80v80].mean()
+            pChoicedata.at[ctr,'EQ20'] = np.nanmean(picked_risky[t20v20])
+            pChoicedata.at[ctr,'EQ50'] = np.nanmean(picked_risky[t50v50])
+            pChoicedata.at[ctr,'EQ80'] = np.nanmean(picked_risky[t80v80])
             
             
             # do the same but with RTs
@@ -228,37 +223,37 @@ def load_processData(datadir,context,debug_):
             pRTdata.at[ctr,'sex']     = df.gender[0]
             
             # look at training choice data
-            pRTdata.at[ctr,'t_s_20v50'] = rt[trainix & t20v50 & safe_ix].mean()
-            pRTdata.at[ctr,'t_s_50v80'] = rt[trainix & t50v80 & safe_ix].mean()
-            pRTdata.at[ctr,'t_s_20v80'] = rt[trainix & t20v80 & safe_ix].mean()
+            pRTdata.at[ctr,'t_s_20v50'] = np.nanmean(rt[trainix & t20v50 & safe_ix])
+            pRTdata.at[ctr,'t_s_50v80'] = np.nanmean(rt[trainix & t50v80 & safe_ix])
+            pRTdata.at[ctr,'t_s_20v80'] = np.nanmean(rt[trainix & t20v80 & safe_ix])
             
-            pRTdata.at[ctr,'t_r_20v50'] = rt[trainix & t20v50 & risky_ix].mean()
-            pRTdata.at[ctr,'t_r_50v80'] = rt[trainix & t50v80 & risky_ix].mean()
-            pRTdata.at[ctr,'t_r_20v80'] = rt[trainix & t20v80 & risky_ix].mean()
+            pRTdata.at[ctr,'t_r_20v50'] = np.nanmean(rt[trainix & t20v50 & risky_ix])
+            pRTdata.at[ctr,'t_r_50v80'] = np.nanmean(rt[trainix & t50v80 & risky_ix])
+            pRTdata.at[ctr,'t_r_20v80'] = np.nanmean(rt[trainix & t20v80 & risky_ix])
     
             # main block pure trials
-            pRTdata.at[ctr,'s_20v50'] = rt[testix & t20v50 & safe_ix].mean()
-            pRTdata.at[ctr,'s_50v80'] = rt[testix & t50v80 & safe_ix].mean()
-            pRTdata.at[ctr,'s_20v80'] = rt[testix & t20v80 & safe_ix].mean()
+            pRTdata.at[ctr,'s_20v50'] = np.nanmean(rt[testix & t20v50 & safe_ix])
+            pRTdata.at[ctr,'s_50v80'] = np.nanmean(rt[testix & t50v80 & safe_ix])
+            pRTdata.at[ctr,'s_20v80'] = np.nanmean(rt[testix & t20v80 & safe_ix])
             
-            pRTdata.at[ctr,'r_20v50'] = rt[testix & t20v50 & risky_ix].mean()
-            pRTdata.at[ctr,'r_50v80'] = rt[testix & t50v80 & risky_ix].mean()
-            pRTdata.at[ctr,'r_20v80'] = rt[testix & t20v80 & risky_ix].mean()
+            pRTdata.at[ctr,'r_20v50'] = np.nanmean(rt[testix & t20v50 & risky_ix])
+            pRTdata.at[ctr,'r_50v80'] = np.nanmean(rt[testix & t50v80 & risky_ix])
+            pRTdata.at[ctr,'r_20v80'] = np.nanmean(rt[testix & t20v80 & risky_ix])
             
             # main block unequal trials
             # narrow is better
-            pRTdata.at[ctr,'UE_s_20v50'] = rt[UE & t20v50 & safebest].mean()
-            pRTdata.at[ctr,'UE_s_50v80'] = rt[UE & t50v80 & safebest].mean()
-            pRTdata.at[ctr,'UE_s_20v80'] = rt[UE & t20v80 & safebest].mean()
+            pRTdata.at[ctr,'UE_s_20v50'] = np.nanmean(rt[UE & t20v50 & safebest])
+            pRTdata.at[ctr,'UE_s_50v80'] = np.nanmean(rt[UE & t50v80 & safebest])
+            pRTdata.at[ctr,'UE_s_20v80'] = np.nanmean(rt[UE & t20v80 & safebest])
             
-            pRTdata.at[ctr,'UE_r_20v50'] = rt[UE & t20v50 & riskybest].mean()
-            pRTdata.at[ctr,'UE_r_50v80'] = rt[UE & t50v80 & riskybest].mean()
-            pRTdata.at[ctr,'UE_r_20v80'] = rt[UE & t20v80 & riskybest].mean()
+            pRTdata.at[ctr,'UE_r_20v50'] = np.nanmean(rt[UE & t20v50 & riskybest])
+            pRTdata.at[ctr,'UE_r_50v80'] = np.nanmean(rt[UE & t50v80 & riskybest])
+            pRTdata.at[ctr,'UE_r_20v80'] = np.nanmean(rt[UE & t20v80 & riskybest])
             
             # main block equivaluable trials
-            pRTdata.at[ctr,'EQ20'] = rt[t20v20].mean()
-            pRTdata.at[ctr,'EQ50'] = rt[t50v50].mean()
-            pRTdata.at[ctr,'EQ80'] = rt[t80v80].mean()
+            pRTdata.at[ctr,'EQ20'] = np.nanmean(rt[t20v20])
+            pRTdata.at[ctr,'EQ50'] = np.nanmean(rt[t50v50])
+            pRTdata.at[ctr,'EQ80'] = np.nanmean(rt[t80v80])
             
             ctr = ctr+1
             
@@ -275,12 +270,7 @@ def load_processData(datadir,context,debug_):
 # END of load_processData 
 
 
-def show_excluded_subjects(p_perf, debug_):
-    
-
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
+def show_excluded_subjects(p_perf):
         
     # calculate different exclusison crit
     
@@ -321,15 +311,11 @@ def show_excluded_subjects(p_perf, debug_):
 # END of show_excluded_subjects
 
 
-def plot_mean_perf(gain_data, loss_data, datatype, debug_):
+def plot_mean_perf(gain_data, loss_data, datatype):
     
     '''
     This function plots and statistically assess choice and rt data by condition
     '''
-    
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
             
 
     # collect the mean performance for the training trials
@@ -636,16 +622,12 @@ def plot_mean_perf(gain_data, loss_data, datatype, debug_):
 
 
 
-def plotChoice_or_RT(gaindata,lossdata,datatype,debug_):
+def plotChoice_or_RT(gaindata,lossdata,datatype):
     '''
     This function plots and statistically assesses either the choice or RT
     data (as specified in the datatype argument). To see the stats, set
     debug_ = True and set a breakpoint at the end of the function.
     '''
-    
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
     
     sns.set_theme(style="ticks")  
     palette = sns.color_palette("colorblind")
@@ -832,16 +814,12 @@ def plotChoice_or_RT(gaindata,lossdata,datatype,debug_):
 # END of plotChoice_or_RT
 
 
-def win_stay_analysis(alldata, debug_):
+def win_stay_analysis(alldata):
     '''
     This analysis looks for instances where a certain option was chosen 
     and yielded a non-zero outcome and asks how likely the person is to select
     that option the next time it's presented (i.e. p(Win-Stay)).
     '''
-    
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
 
     # get subject IDs
     sIDs = alldata.vpNum.unique()
@@ -917,16 +895,12 @@ def win_stay_analysis(alldata, debug_):
 
 
 
-def lose_stay_analysis(alldata, debug_):
+def lose_stay_analysis(alldata):
     '''
     This analysis looks for instances where a certain option was chosen 
     and yielded a zero outcome and asks how likely the person is to select
     that option the next time it's presented (i.e. p(Lose-Stay)).
     '''
-    
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
 
     # get subject IDs and image IDs
     sIDs = alldata.vpNum.unique()
@@ -1006,11 +980,7 @@ def lose_stay_analysis(alldata, debug_):
 
 
 
-def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,debug_):
-    
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace() 
+def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay):
         
     
     # define colormap for plotting 
@@ -1075,11 +1045,7 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay,d
 # END of plotWinStay
 
 
-def distRLmodel_MLE(alldata,debug_):
-    
-    # check if we want to debug
-    if debug_:
-        breakpoint()
+def distRLmodel_MLE(alldata):
      
     alphavals = np.linspace(.1,1,int(1/.1))
     #betas = np.linspace(1,40,20)
@@ -1256,24 +1222,15 @@ def distRLmodel_MLE(alldata,debug_):
 
 def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
                            gain_choice, loss_choice,
-                           gain_bestAccOpt,loss_bestAccOpt,
-                           debug_):
-
-    # check if we want to debug
-    if debug_:
-        pdb.set_trace()     
+                           gain_bestAccOpt,loss_bestAccOpt):   
 
 
     # define colormap for plotting 
     cmap = plt.cm.Paired(np.linspace(0, 1, 12))
         
-    gain_EQ_bias = np.array([gain_choice.iloc[:,23], 
-                             gain_choice.iloc[:,24], 
-                             gain_choice.iloc[:,25] ]).mean(axis=0)
+    gain_EQ_bias = np.nanmean(gain_choice.iloc[:,23:26], axis =1)
     
-    loss_EQ_bias = np.array([loss_choice.iloc[:,23], 
-                             loss_choice.iloc[:,24], 
-                             loss_choice.iloc[:,25] ]).mean(axis=0)
+    loss_EQ_bias = np.nanmean(loss_choice.iloc[:,23:26], axis =1)
   
     
     # fit a linear mixed effect model
@@ -1366,10 +1323,7 @@ def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
     xx=[] 
 # END of relate_distRL_to_EQbias
 
-def q_learner_choice_bias(gain_params, gain_Qtbl, loss_params, loss_Qtbl, debug_):
-    
-    if debug_:
-        breakpoint()
+def q_learner_choice_bias(gain_params, gain_Qtbl, loss_params, loss_Qtbl):
     
     n_subjs = len(gain_Qtbl)
     
