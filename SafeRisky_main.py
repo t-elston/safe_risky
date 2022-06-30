@@ -14,29 +14,41 @@ importlib.reload(sr)
 #%% point of entry
 
 # working from lab
-#datadir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/data/'
+exp1_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp1_data/'
+exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp2_data/'
+
 
 # working from home
-datadir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp2_data/'
+#datadir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp2_data/'
 
 
 # load and process data
-gain_choice , gain_rt, gain_all, p_perf =sr.load_processData(datadir,context='Gain')
+exp1_gain_choice , exp1_gain_rt, exp1_gain_all, exp1_p_perf =sr.load_processData(exp1_dir,context='Gain')
+exp1_loss_choice , exp1_loss_rt, exp1_loss_all, exp1_p_perf =sr.load_processData(exp1_dir, context='Loss')
 
-loss_choice , loss_rt, loss_all, p_perf =sr.load_processData(datadir, context='Loss')
+exp2_gain_choice , exp2_gain_rt, exp2_gain_all, exp2_p_perf =sr.load_processData(exp2_dir,context='Gain')
+exp2_loss_choice , exp2_loss_rt, exp2_loss_all, exp2_p_perf =sr.load_processData(exp2_dir, context='Loss')
 
 #%%
 #  plot mean participant performance, show excluded subjects
 #sr.show_excluded_subjects(p_perf)
 
-# plot high-level summary of all conditions 
-sr.plot_mean_perf(gain_choice, loss_choice, datatype='choice')
-sr.plot_mean_perf(gain_rt, loss_rt, datatype='rt')
+# get stats and plot summary for ONE EXPERIMENT AT A TIME
+# TODO write stats to dict in sr.plot_mean_perf()
+sr.plot_mean_perf(exp1_gain_choice, exp1_loss_choice, datatype='choice')
+sr.plot_mean_perf(exp1_gain_rt, exp1_loss_rt, datatype='rt')
 
+sr.plot_mean_perf(exp2_gain_choice, exp2_loss_choice, datatype='choice')
+sr.plot_mean_perf(exp2_gain_rt, exp2_loss_rt, datatype='rt')
 
-# (DEPRECATED) break out choice and rt data by individual condition 
-#sr.plotChoice_or_RT(gain_choice,loss_choice,datatype='choice')
-#sr.plotChoice_or_RT(gain_rt,loss_rt,datatype='rt')
+# plot results of BOTH EXPERIMENTS (look at ^^ for stats)
+sr.plot_both_experiments_perf(exp1_gain_choice, exp1_loss_choice,
+                              exp2_gain_choice, exp2_loss_choice,
+                              datatype = 'choice')
+
+sr.plot_both_experiments_perf(exp1_gain_rt, exp1_loss_rt,
+                              exp2_gain_rt, exp2_loss_rt,
+                              datatype = 'rt')
 
 #%%
 # do win-stay analysis for data from both contexts
@@ -54,8 +66,10 @@ sr.plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay)
 
 #%%
 # run the distRL model
-gain_bestparams, gain_bestAccOpt, gain_Qtbl = sr.distRLmodel_MLE(gain_all)
-loss_bestparams, loss_bestAccOpt, loss_Qtbl = sr.distRLmodel_MLE(loss_all)
+exp1_gain_bestparams, exp1_gain_bestAccOpt, exp1_gain_Qtbl = sr.distRLmodel_MLE(exp1_gain_all)
+exp1_loss_bestparams, exp1_loss_bestAccOpt, exp1_loss_Qtbl = sr.distRLmodel_MLE(exp1_loss_all)
+exp2_gain_bestparams, exp2_gain_bestAccOpt, exp1_gain_Qtbl = sr.distRLmodel_MLE(exp2_gain_all)
+exp2_loss_bestparams, exp2_loss_bestAccOpt, exp1_loss_Qtbl = sr.distRLmodel_MLE(exp2_loss_all)
 
 # plot and quantify distRL parameters
 sr.relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
