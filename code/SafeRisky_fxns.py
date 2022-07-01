@@ -615,6 +615,205 @@ def plot_mean_perf(gain_data, loss_data, datatype):
     xx=[]
     
 # END of plot_mean_perf
+
+
+def collect_data_for_stats(gain_data, loss_data):
+    
+    '''
+    This function aggregates the data from each experiment into a dict
+    which stats can later be done on
+    '''
+
+    out_data = {} # initialize dict as to store data in
+            
+
+    # collect the mean performance for the training trials
+    mean_gain_train = pd.DataFrame()
+    mean_gain_train['vpnum']   = gain_data.vpnum
+    mean_gain_train['context'] = gain_data.context
+    mean_gain_train['safe']    = np.nanmean(gain_data.iloc[:,5:8],axis=1)
+    mean_gain_train['risky']   = np.nanmean(gain_data.iloc[:,8:10],axis=1)
+    
+    mean_loss_train = pd.DataFrame()
+    mean_loss_train['vpnum']   = loss_data.vpnum
+    mean_loss_train['context'] = loss_data.context
+    mean_loss_train['safe']    = np.nanmean(loss_data.iloc[:,5:8],axis=1)
+    mean_loss_train['risky']   = np.nanmean(loss_data.iloc[:,8:10],axis=1)
+    
+    n_subs = len(mean_loss_train)
+    
+    # aggregate the train data for an rm_anova later
+    all_train = pd.DataFrame()
+    all_train['resp'] = np.concatenate([mean_gain_train['risky'], mean_gain_train['safe'],
+                                 mean_loss_train['risky'], mean_loss_train['safe'],])
+    
+    all_train['vpnum'] = np.concatenate([mean_gain_train['vpnum'],mean_gain_train['vpnum'],
+                            mean_loss_train['vpnum'],mean_loss_train['vpnum']])
+    
+    all_train['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                              np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_train['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*-1,
+                              np.ones([n_subs,]), np.ones([n_subs,])*-1])
+    
+    out_data['train'] = all_train
+
+
+    
+    # collect the mean performance for the main block pure trials 
+    mean_gain = pd.DataFrame()
+    mean_gain['vpnum']   = gain_data.vpnum
+    mean_gain['context'] = gain_data.context
+    mean_gain['safe']    = np.nanmean(gain_data.iloc[:,11:14],axis=1)
+    mean_gain['risky']   = np.nanmean(gain_data.iloc[:,14:17],axis=1)
+    
+    mean_loss = pd.DataFrame()
+    mean_loss['vpnum']   = loss_data.vpnum
+    mean_loss['context'] = loss_data.context
+    mean_loss['safe']    = np.nanmean(loss_data.iloc[:,11:14],axis=1)
+    mean_loss['risky']   = np.nanmean(loss_data.iloc[:,14:17],axis=1)
+    
+    # aggregate the main block data
+    all_main = pd.DataFrame()
+    all_main['resp'] = np.concatenate([mean_gain['risky'], mean_gain['safe'],
+                                 mean_loss['risky'], mean_loss['safe'],])
+    
+    all_main['vpnum'] = np.concatenate([mean_gain['vpnum'],mean_gain['vpnum'],
+                            mean_loss['vpnum'],mean_loss['vpnum']])
+    
+    all_main['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                              np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_main['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*-1,
+                              np.ones([n_subs,]), np.ones([n_subs,])*-1])
+
+    out_data['pure'] = all_main
+
+    
+    # collect the mean performance for the main block UE trials 
+    mean_gain_UE = pd.DataFrame()
+    mean_gain_UE['vpnum']   = gain_data.vpnum
+    mean_gain_UE['context'] = gain_data.context
+    mean_gain_UE['safe']    = np.nanmean(gain_data.iloc[:,17:20],axis=1)
+    mean_gain_UE['risky']   = np.nanmean(gain_data.iloc[:,20:23],axis=1)
+    
+    mean_loss_UE = pd.DataFrame()
+    mean_loss_UE['vpnum']   = loss_data.vpnum
+    mean_loss_UE['context'] = loss_data.context
+    mean_loss_UE['safe']    = np.nanmean(loss_data.iloc[:,17:20],axis=1)
+    mean_loss_UE['risky']   = np.nanmean(loss_data.iloc[:,20:23],axis=1)
+    
+    # aggregate the main UE trials data
+    all_UE = pd.DataFrame()
+    all_UE['resp'] = np.concatenate([mean_gain_UE['risky'], mean_gain_UE['safe'],
+                                 mean_loss_UE['risky'], mean_loss_UE['safe'],])
+    
+    all_UE['vpnum'] = np.concatenate([mean_gain_UE['vpnum'],mean_gain_UE['vpnum'],
+                            mean_loss_UE['vpnum'],mean_loss_UE['vpnum']])
+    
+    all_UE['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                              np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_UE['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*-1,
+                              np.ones([n_subs,]), np.ones([n_subs,])*-1])
+
+    out_data['UE'] = all_UE
+
+    
+    
+    all_EQ=pd.DataFrame()
+    all_EQ['resp'] = np.concatenate([gain_data.EQ20,gain_data.EQ50,gain_data.EQ80,
+                                     loss_data.EQ20,loss_data.EQ50,loss_data.EQ80])
+    
+    all_EQ['vpnum'] = np.concatenate([mean_gain_UE['vpnum'],mean_gain_UE['vpnum'],
+                                      mean_gain_UE['vpnum'],mean_loss_UE['vpnum'],
+                                      mean_loss_UE['vpnum'],mean_loss_UE['vpnum']])
+    
+    all_EQ['context'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,]),
+                                        np.ones([n_subs,]), np.ones([n_subs,])*-1, 
+                                        np.ones([n_subs,])*-1, np.ones([n_subs,])*-1])
+    
+    all_EQ['cond'] = np.concatenate([np.ones([n_subs,]), np.ones([n_subs,])*2,
+                                     np.ones([n_subs,])*3, np.ones([n_subs,]),
+                                     np.ones([n_subs,])*2,np.ones([n_subs,])*3])
+
+    out_data['EQ'] = all_EQ
+
+    return out_data
+
+# END of collect_data_for_stats()
+
+
+def do_stats(exp1, exp2):
+
+    '''
+    This function statistically assesses the training, pure, unequal safe vs risky,
+    and equal safe vs risky conditions both within and across exps 1 and 2
+
+    Results are aggregated into dicts
+    '''
+
+    exp1_stats = {}
+    exp2_stats = {}
+
+    #-----------------------
+    #     Experiment 1
+    #-----------------------   
+    # training
+    exp1_stats['train'] = pg.rm_anova(data = exp1['train'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    # pure trials 
+    exp1_stats['pure'] = pg.rm_anova(data = exp1['pure'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    # UE trials 
+    exp1_stats['UE'] = pg.rm_anova(data = exp1['UE'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    # EQ trials
+    exp1_stats['EQ'] = pg.rm_anova(data = exp1['EQ'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+
+    #-----------------------
+    #     Experiment 2
+    #-----------------------   
+    # training
+    exp2_stats['train'] = pg.rm_anova(data = exp2['train'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    # pure trials 
+    exp2_stats['pure'] = pg.rm_anova(data = exp2['pure'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    # UE trials 
+    exp2_stats['UE'] = pg.rm_anova(data = exp2['UE'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    # EQ trials
+    exp2_stats['EQ'] = pg.rm_anova(data = exp2['EQ'],
+                           dv = 'resp',
+                           within = ['context','cond'],
+                           subject = 'vpnum')
+ 
+    return exp1_stats, exp2_stats 
+
+# end of do_stats
+    
     
 
 def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
@@ -1924,57 +2123,3 @@ def both_exp_distRLxEQbias(exp1_gain_bestparams, exp1_loss_bestparams,
   
     xx=[] 
 # END of relate_distRL_to_EQbias
-
-
-
-def q_learner_choice_bias(gain_params, gain_Qtbl, loss_params, loss_Qtbl):
-    
-    n_subjs = len(gain_Qtbl)
-    
-    # initialize arrays
-    gain_bias = np.zeros((n_subjs,3))
-    loss_bias = np.zeros((n_subjs,3))
-
-    # loop over each subject and get their choice bias according to a softmax
-    for i in range(n_subjs):
-        
-        gain_beta = gain_params[i,2]
-        loss_beta = loss_params[i,2]
-        
-        for prob in range(3):
-            
-            # likelihood of choosing risky option
-            gain_bias[i,prob] = ut.compute_softmax(gain_Qtbl[i,prob+3],
-                                                   gain_Qtbl[i,prob], 
-                                                   gain_beta)
-            
-            loss_bias[i,prob] = ut.compute_softmax(loss_Qtbl[i,prob+3],
-                                                   loss_Qtbl[i,prob], 
-                                                   loss_beta)
-            
-            xx=[]
-            
-                                
-    
-    gain_Qdiff = gain_Qtbl[:,3:] - np.array([24, 30,36])
-    loss_Qdiff = loss_Qtbl[:,3:] - (np.array([24, 30,36]))*-1
-
-    gain_mean = gain_Qdiff.mean(axis=0)
-    loss_mean = loss_Qdiff.mean(axis=0)
-    
-    gain_sem = (gain_Qdiff.std(axis=0) / np.sqrt(len(gain_Qdiff)))
-    loss_sem = (loss_Qdiff.std(axis=0) / np.sqrt(len(loss_Qdiff)))
-
-    plt.errorbar([20,50,80],gain_mean,gain_sem)
-    plt.errorbar([20,50,80],loss_mean,loss_sem)
-
-    
-    xx=[]
-    
-# END of q_learner_choice_bias
-
-
-
-
-
-
