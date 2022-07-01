@@ -755,6 +755,7 @@ def do_stats(exp1, exp2):
 
     exp1_stats = {}
     exp2_stats = {}
+    both_exp_stats = {}
 
     #-----------------------
     #     Experiment 1
@@ -809,8 +810,46 @@ def do_stats(exp1, exp2):
                            dv = 'resp',
                            within = ['context','cond'],
                            subject = 'vpnum')
+
+
+    #----------------
+    # mixed effects models combining exp1 and exp2
+    #---------------
+    # make an array indicating which experiment some data came from
+    exp_factor = np.concatenate([np.ones(len(exp1['train'])),
+                            np.ones(len(exp2['train']))*-1]).astype(int)
+
+    eq_exp_factor = np.concatenate([np.ones(len(exp1['EQ'])),
+                            np.ones(len(exp2['EQ']))*-1])
+    
+    # aggregate data for mixed anova
+    all_train = pd.concat([exp1['train'], exp2['train']])
+    all_train['exp_factor'] = exp_factor
+
+    all_pure = pd.concat([exp1['pure'], exp2['pure']])
+    all_pure['exp_factor'] = exp_factor
+
+    all_UE = pd.concat([exp1['UE'], exp2['UE']])
+    all_UE['exp_factor'] = exp_factor
+
+    all_EQ = pd.concat([exp1['EQ'], exp2['EQ']])
+    all_EQ['exp_factor'] = eq_exp_factor
+
+    # do the mixed effects linear models
+    both_exp_stats['train'] = smf.mixedlm('resp ~ C(context)*C(cond)*C(exp_factor)',
+                                all_train, groups = all_train['vpnum']).fit()
+
+    both_exp_stats['pure'] = smf.mixedlm('resp ~ C(context)*C(cond)*C(exp_factor)',
+                                all_pure, groups = all_pure['vpnum']).fit()
+
+    both_exp_stats['UE'] = smf.mixedlm('resp ~ C(context)*C(cond)*C(exp_factor)',
+                                all_UE, groups = all_UE['vpnum']).fit()
+
+    both_exp_stats['EQ'] = smf.mixedlm('resp ~ C(context)*C(cond)*C(exp_factor)',
+                                all_EQ, groups = all_EQ['vpnum']).fit()
+
  
-    return exp1_stats, exp2_stats 
+    return exp1_stats, exp2_stats
 
 # end of do_stats
     
