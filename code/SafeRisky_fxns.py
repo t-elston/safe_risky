@@ -11,6 +11,7 @@ import numpy as np
 import numpy.matlib
 import pdb
 import matplotlib.pyplot as plt
+from regex import F
 import statsmodels.formula.api as smf
 import statsmodels.api as sm
 from statsmodels.stats.anova import AnovaRM
@@ -616,6 +617,43 @@ def plot_mean_perf(gain_data, loss_data, datatype):
     
 # END of plot_mean_perf
 
+def assess_conds_with_best_choice(gain_data, loss_data):
+    xx=[]
+
+    gain_df = pd.DataFrame()
+    loss_df = pd.DataFrame()
+
+    gain_df['train_safe'] = np.nanmean(gain_data.iloc[:,5:8],axis=1)
+    gain_df['train_risky'] = np.nanmean(gain_data.iloc[:,8:11],axis=1)
+    gain_df['main_safe'] = np.nanmean(gain_data.iloc[:,11:14],axis=1)
+    gain_df['main_risky'] = np.nanmean(gain_data.iloc[:,14:17],axis=1)
+    gain_df['UE_safe_better'] = np.nanmean(gain_data.iloc[:,17:20],axis=1)
+    gain_df['UE_risky_better'] = np.nanmean(gain_data.iloc[:,20:23],axis=1)
+
+    loss_df['train_safe'] = np.nanmean(loss_data.iloc[:,5:8],axis=1)
+    loss_df['train_risky'] = np.nanmean(loss_data.iloc[:,8:11],axis=1)
+    loss_df['main_safe'] = np.nanmean(loss_data.iloc[:,11:14],axis=1)
+    loss_df['main_risky'] = np.nanmean(loss_data.iloc[:,14:17],axis=1)
+    loss_df['UE_safe_better'] = np.nanmean(loss_data.iloc[:,17:20],axis=1)
+    loss_df['UE_risky_better'] = np.nanmean(loss_data.iloc[:,20:23],axis=1)
+
+    gain_results = pd.DataFrame()
+    loss_results = pd.DataFrame()
+
+    for cond in range(6):
+        gain_results = gain_results.append(pg.ttest(gain_df.iloc[:,cond], .5))
+        loss_results = loss_results.append(pg.ttest(loss_df.iloc[:,cond], .5))
+
+    gain_results.index = gain_df.columns
+    loss_results.index = gain_df.columns
+
+    return gain_results, loss_results
+
+# END of assess_conds_with_best_choice()
+
+
+
+
 
 def collect_data_for_stats(gain_data, loss_data):
     
@@ -626,19 +664,18 @@ def collect_data_for_stats(gain_data, loss_data):
 
     out_data = {} # initialize dict as to store data in
             
-
     # collect the mean performance for the training trials
     mean_gain_train = pd.DataFrame()
     mean_gain_train['vpnum']   = gain_data.vpnum
     mean_gain_train['context'] = gain_data.context
     mean_gain_train['safe']    = np.nanmean(gain_data.iloc[:,5:8],axis=1)
-    mean_gain_train['risky']   = np.nanmean(gain_data.iloc[:,8:10],axis=1)
+    mean_gain_train['risky']   = np.nanmean(gain_data.iloc[:,8:11],axis=1)
     
     mean_loss_train = pd.DataFrame()
     mean_loss_train['vpnum']   = loss_data.vpnum
     mean_loss_train['context'] = loss_data.context
     mean_loss_train['safe']    = np.nanmean(loss_data.iloc[:,5:8],axis=1)
-    mean_loss_train['risky']   = np.nanmean(loss_data.iloc[:,8:10],axis=1)
+    mean_loss_train['risky']   = np.nanmean(loss_data.iloc[:,8:11],axis=1)
     
     n_subs = len(mean_loss_train)
     
@@ -657,7 +694,6 @@ def collect_data_for_stats(gain_data, loss_data):
                               np.ones([n_subs,]), np.ones([n_subs,])*-1])
     
     out_data['train'] = all_train
-
 
     
     # collect the mean performance for the main block pure trials 
@@ -866,13 +902,13 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     exp1_gain_train['vpnum']   = exp1_gain_data.vpnum
     exp1_gain_train['context'] = exp1_gain_data.context
     exp1_gain_train['safe']    = np.nanmean(exp1_gain_data.iloc[:,5:8],axis=1)
-    exp1_gain_train['risky']   = np.nanmean(exp1_gain_data.iloc[:,8:10],axis=1)
+    exp1_gain_train['risky']   = np.nanmean(exp1_gain_data.iloc[:,8:11],axis=1)
     
     exp1_loss_train = pd.DataFrame()
     exp1_loss_train['vpnum']   = exp1_loss_data.vpnum
     exp1_loss_train['context'] = exp1_loss_data.context
     exp1_loss_train['safe']    = np.nanmean(exp1_loss_data.iloc[:,5:8],axis=1)
-    exp1_loss_train['risky']   = np.nanmean(exp1_loss_data.iloc[:,8:10],axis=1)
+    exp1_loss_train['risky']   = np.nanmean(exp1_loss_data.iloc[:,8:11],axis=1)
 
     # gain_train means
     exp1_gain_train_y = np.array([exp1_gain_train.safe.mean(),
@@ -1256,8 +1292,75 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     
 # END of function
 
+def compare_both_experiments_risk_preference(exp1_gain_data, exp1_loss_data,
+                                             exp2_gain_data, exp2_loss_data):
+
+    exp1_EQbias = np.concatenate([np.mean(exp1_gain_data.iloc[:,23:26], axis = 1),
+                                  np.mean(exp1_loss_data.iloc[:,23:26], axis = 1)])
+
+    exp2_EQbias = np.concatenate([np.mean(exp2_gain_data.iloc[:,23:26], axis = 1),
+                                  np.mean(exp2_loss_data.iloc[:,23:26], axis = 1)])
+
+    exp1_subj = np.concatenate([np.arange(len(exp1_gain_data)), 
+                                np.arange(len(exp1_loss_data))])
+
+    exp2_subj = np.concatenate([np.arange(len(exp2_gain_data))+100, 
+                                np.arange(len(exp2_loss_data))+100])
+
+    EQbias = np.concatenate([exp1_EQbias, exp2_EQbias])
+
+    exp_factor = np.concatenate([np.ones(shape = len(exp1_EQbias),),
+                                 np.ones(shape = len(exp2_EQbias),)*2])
+
+    context_factor = np.concatenate([np.ones(shape = len(exp1_gain_data),),
+                                     np.ones(shape = len(exp1_loss_data),)*2,
+                                     np.ones(shape = len(exp2_gain_data),),
+                                     np.ones(shape = len(exp2_loss_data),)*2])
+
+    subject = np.concatenate([exp1_subj, exp2_subj])
+
+    df = pd.DataFrame()
+    df['EQbias'] = EQbias
+    df['exp']   = exp_factor
+    df['context'] = context_factor
+    df['subject'] =subject
+
+    results = pg.mixed_anova(data=df, 
+                            dv = 'EQbias',
+                            within = 'context',
+                            between='exp',
+                            subject= 'subject')
+
+    
+    exp1_gain_means = np.mean(exp1_gain_data.iloc[:,23:26], axis = 1)
+    exp1_loss_means = np.mean(exp1_loss_data.iloc[:,23:26], axis = 1)
+    exp2_gain_means = np.mean(exp2_gain_data.iloc[:,23:26], axis = 1)
+    exp2_loss_means = np.mean(exp2_loss_data.iloc[:,23:26], axis = 1)
+
+    exp1_gain_sem = exp1_gain_means.std()/np.sqrt(len(exp1_gain_means))
+    exp1_loss_sem = exp1_loss_means.std()/np.sqrt(len(exp1_loss_means))
+    exp2_gain_sem = exp2_gain_means.std()/np.sqrt(len(exp2_gain_means))
+    exp2_loss_sem = exp2_loss_means.std()/np.sqrt(len(exp2_loss_means))
+
+    
+    # make a figure and plot
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+
+    fig, ax = plt.subplots(1,1, dpi = 300, figsize = (2,3))
+
+    ax.errorbar([1,2], [np.mean(exp1_gain_means), np.mean(exp2_gain_means)],
+                       [exp1_gain_sem, exp2_gain_sem],marker='o',color=cmap[1,:],label='Gain')
+    ax.errorbar([1,2], [np.mean(exp1_loss_means), np.mean(exp2_loss_means)],
+                       [exp1_loss_sem, exp2_loss_sem],marker='o',color=cmap[5,:],label='Loss')
+    ax.set_xticks([1,2])
+    ax.set_xlim([.7, 2.3])
+    ax.set_xlabel('Experiment #')
+    ax.set_ylabel('p(Choose Risky)')
+    ax.legend()
 
 
+
+# END of function
 
 
 def plotChoice_or_RT(gaindata,lossdata,datatype):
@@ -1683,7 +1786,7 @@ def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay):
 
 def distRLmodel_MLE(alldata):
      
-    alphavals = np.linspace(.1,1,int(1/.1))
+    alphavals = np.linspace(.05,1,int(1/.05))
     #betas = np.linspace(1,40,20)
     #nparams = 3
     betas = np.array([1]) # this is for debugging

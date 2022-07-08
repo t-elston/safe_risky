@@ -11,17 +11,14 @@ import importlib
 #%%
 importlib.reload(sr)
 
-#%% set data directory
-
+#%% set data directories
 # working from lab
-#exp1_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp1_data/'
-#exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp2_data/'
-
+exp1_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp1_data/'
+exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp2_data/'
 
 # working from home
-exp1_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp1_data/'
-exp2_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp2_data/'
-
+#exp1_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp1_data/'
+#exp2_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp2_data/'
 
 
 #%% load and wrangle data
@@ -32,6 +29,11 @@ exp2_gain_choice , exp2_gain_rt, exp2_gain_all, exp2_p_perf =sr.load_processData
 exp2_loss_choice , exp2_loss_rt, exp2_loss_all, exp2_p_perf =sr.load_processData(exp2_dir, context='Loss')
 
 #%% do stats and plot basic conditions
+# do t-tests on conditions with a best option
+exp1_gain_ttests, exp1_loss_ttests = sr.assess_conds_with_best_choice(exp1_gain_choice, exp1_loss_choice)
+exp2_gain_ttests, exp2_loss_ttests = sr.assess_conds_with_best_choice(exp2_gain_choice, exp2_loss_choice)
+
+
 exp1_choice_data = sr.collect_data_for_stats(exp1_gain_choice, exp1_loss_choice)
 exp2_choice_data = sr.collect_data_for_stats(exp2_gain_choice, exp2_loss_choice)
 exp1_rt_data = sr.collect_data_for_stats(exp1_gain_rt, exp1_loss_rt)
@@ -49,6 +51,9 @@ sr.plot_both_experiments_perf(exp1_gain_choice, exp1_loss_choice,
 sr.plot_both_experiments_perf(exp1_gain_rt, exp1_loss_rt,
                               exp2_gain_rt, exp2_loss_rt,
                               datatype = 'rt')
+
+sr.compare_both_experiments_risk_preference(exp1_gain_choice, exp1_loss_choice,
+                                            exp2_gain_choice, exp2_loss_choice)
 
 #%% do win-stay analysis for data from both contexts
 gain_winstay = sr.win_stay_analysis(gain_all)
