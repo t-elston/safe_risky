@@ -1357,7 +1357,45 @@ def compare_both_experiments_risk_preference(exp1_gain_data, exp1_loss_data,
     ax.set_xlabel('Experiment #')
     ax.set_ylabel('p(Choose Risky)')
     ax.legend()
+# END of function
 
+
+def plot_individual_subjectEQbiases(exp1_gain_data, exp1_loss_data,
+                                    exp2_gain_data, exp2_loss_data):
+
+    exp1_gain_EQbias = exp1_gain_data.iloc[:,23:26].T.to_numpy()
+    exp1_loss_EQbias = exp1_loss_data.iloc[:,23:26].T.to_numpy()
+    exp2_gain_EQbias = exp2_gain_data.iloc[:,23:26].T.to_numpy()
+    exp2_loss_EQbias = exp2_loss_data.iloc[:,23:26].T.to_numpy()
+    
+    
+    # make a figure and plot
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+
+    fig, ax = plt.subplots(1,2, dpi = 300, figsize = (6,3))
+    fig.tight_layout(h_pad=4)
+
+
+    ax[0].plot([1,2,3],exp1_gain_EQbias[:,0], color = cmap[1,:], linewidth = 1)
+    ax[0].plot([1,2,3],exp1_loss_EQbias[:,0], color = cmap[5,:], linewidth = 1)
+    ax[0].plot([1,2,3],exp1_gain_EQbias, color = cmap[1,:], linewidth = 1)
+    ax[0].plot([1,2,3],exp1_loss_EQbias, color = cmap[5,:], linewidth = 1)
+    ax[0].set_xticks([1,2,3])
+    ax[0].set_xlim([.7, 3.3])
+    ax[0].set_xticklabels({'EQ20','EQ50','EQ80'})
+    ax[0].set_xlabel('Equivaluable Condition')
+    ax[0].set_ylabel('p(Choose Risky)')
+    ax[0].legend({'Gain','Loss'})
+    ax[0].set_title('Exp. 1')
+
+    ax[1].plot([1,2,3],exp2_gain_EQbias[:,0], color = cmap[1,:], linewidth = 1)
+    ax[1].plot([1,2,3],exp2_loss_EQbias[:,0], color = cmap[5,:], linewidth = 1)
+    ax[1].plot([1,2,3],exp2_gain_EQbias, color = cmap[1,:], linewidth = 1)
+    ax[1].plot([1,2,3],exp2_loss_EQbias, color = cmap[5,:], linewidth = 1)
+    ax[1].set_xticks([1,2,3])
+    ax[1].set_xlim([.7, 3.3])
+    ax[1].set_xticklabels({'EQ20','EQ50','EQ80'})
+    ax[1].set_title('Exp. 2')
 
 
 # END of function

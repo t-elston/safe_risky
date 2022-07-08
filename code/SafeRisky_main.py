@@ -13,12 +13,12 @@ importlib.reload(sr)
 
 #%% set data directories
 # working from lab
-exp1_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp1_data/'
-exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp2_data/'
+#exp1_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp1_data/'
+#exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp2_data/'
 
 # working from home
-#exp1_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp1_data/'
-#exp2_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp2_data/'
+exp1_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp1_data/'
+exp2_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp2_data/'
 
 
 #%% load and wrangle data
@@ -56,15 +56,17 @@ sr.compare_both_experiments_risk_preference(exp1_gain_choice, exp1_loss_choice,
                                             exp2_gain_choice, exp2_loss_choice)
 
 #%% do win-stay analysis for data from both contexts
-gain_winstay = sr.win_stay_analysis(gain_all)
-loss_winstay = sr.win_stay_analysis(loss_all)
+#TODO update WS-LS analysis to incorporate both experiments
+gain_winstay = sr.win_stay_analysis(exp1_gain_all)
+loss_winstay = sr.win_stay_analysis(exp1_loss_all)
 
 # do lose-stay analysis (returns NaNs for safe options)
-gain_losestay = sr.lose_stay_analysis(gain_all)
-loss_losestay = sr.lose_stay_analysis(loss_all)
+gain_losestay = sr.lose_stay_analysis(exp1_gain_all)
+loss_losestay = sr.lose_stay_analysis(exp1_loss_all)
 
 # plot/assess the win-stay analysis
 sr.plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay)
+
 
 
 #%% do some distributional RL modelling
@@ -80,3 +82,5 @@ sr.both_exp_distRLxEQbias(exp1_gain_bestparams, exp1_loss_bestparams,
                            exp2_gain_bestparams, exp2_loss_bestparams,
                            exp2_gain_choice, exp2_loss_choice,
                            exp2_gain_bestAccOpt,exp2_loss_bestAccOpt)
+
+# %%
