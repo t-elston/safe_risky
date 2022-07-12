@@ -1292,30 +1292,30 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     
 # END of function
 
-def compare_both_experiments_risk_preference(exp1_gain_data, exp1_loss_data,
-                                             exp2_gain_data, exp2_loss_data):
+def compare_both_experiments_risk_preference(exp1_gain_choice, exp1_loss_choice,
+                                             exp2_gain_choice, exp2_loss_choice):
 
-    exp1_EQbias = np.concatenate([np.mean(exp1_gain_data.iloc[:,23:26], axis = 1),
-                                  np.mean(exp1_loss_data.iloc[:,23:26], axis = 1)])
+    exp1_EQbias = np.concatenate([np.mean(exp1_gain_choice.iloc[:,23:26], axis = 1),
+                                  np.mean(exp1_loss_choice.iloc[:,23:26], axis = 1)])
 
-    exp2_EQbias = np.concatenate([np.mean(exp2_gain_data.iloc[:,23:26], axis = 1),
-                                  np.mean(exp2_loss_data.iloc[:,23:26], axis = 1)])
+    exp2_EQbias = np.concatenate([np.mean(exp2_gain_choice.iloc[:,23:26], axis = 1),
+                                  np.mean(exp2_loss_choice.iloc[:,23:26], axis = 1)])
 
-    exp1_subj = np.concatenate([np.arange(len(exp1_gain_data)), 
-                                np.arange(len(exp1_loss_data))])
+    exp1_subj = np.concatenate([np.arange(len(exp1_gain_choice)), 
+                                np.arange(len(exp1_loss_choice))])
 
-    exp2_subj = np.concatenate([np.arange(len(exp2_gain_data))+100, 
-                                np.arange(len(exp2_loss_data))+100])
+    exp2_subj = np.concatenate([np.arange(len(exp2_gain_choice))+100, 
+                                np.arange(len(exp2_loss_choice))+100])
 
     EQbias = np.concatenate([exp1_EQbias, exp2_EQbias])
 
     exp_factor = np.concatenate([np.ones(shape = len(exp1_EQbias),),
                                  np.ones(shape = len(exp2_EQbias),)*2])
 
-    context_factor = np.concatenate([np.ones(shape = len(exp1_gain_data),),
-                                     np.ones(shape = len(exp1_loss_data),)*2,
-                                     np.ones(shape = len(exp2_gain_data),),
-                                     np.ones(shape = len(exp2_loss_data),)*2])
+    context_factor = np.concatenate([np.ones(shape = len(exp1_gain_choice),),
+                                     np.ones(shape = len(exp1_loss_choice),)*2,
+                                     np.ones(shape = len(exp2_gain_choice),),
+                                     np.ones(shape = len(exp2_loss_choice),)*2])
 
     subject = np.concatenate([exp1_subj, exp2_subj])
 
@@ -1332,10 +1332,10 @@ def compare_both_experiments_risk_preference(exp1_gain_data, exp1_loss_data,
                             subject= 'subject')
 
     
-    exp1_gain_means = np.mean(exp1_gain_data.iloc[:,23:26], axis = 1)
-    exp1_loss_means = np.mean(exp1_loss_data.iloc[:,23:26], axis = 1)
-    exp2_gain_means = np.mean(exp2_gain_data.iloc[:,23:26], axis = 1)
-    exp2_loss_means = np.mean(exp2_loss_data.iloc[:,23:26], axis = 1)
+    exp1_gain_means = np.mean(exp1_gain_choice.iloc[:,23:26], axis = 1)
+    exp1_loss_means = np.mean(exp1_loss_choice.iloc[:,23:26], axis = 1)
+    exp2_gain_means = np.mean(exp2_gain_choice.iloc[:,23:26], axis = 1)
+    exp2_loss_means = np.mean(exp2_loss_choice.iloc[:,23:26], axis = 1)
 
     exp1_gain_sem = exp1_gain_means.std()/np.sqrt(len(exp1_gain_means))
     exp1_loss_sem = exp1_loss_means.std()/np.sqrt(len(exp1_loss_means))
@@ -1360,14 +1360,19 @@ def compare_both_experiments_risk_preference(exp1_gain_data, exp1_loss_data,
 # END of function
 
 
-def plot_individual_subjectEQbiases(exp1_gain_data, exp1_loss_data,
-                                    exp2_gain_data, exp2_loss_data):
+def plot_individual_subjectEQbiases(exp1_gain_choice, exp1_loss_choice,
+                                    exp2_gain_choice, exp2_loss_choice):
 
-    exp1_gain_EQbias = exp1_gain_data.iloc[:,23:26].T.to_numpy()
-    exp1_loss_EQbias = exp1_loss_data.iloc[:,23:26].T.to_numpy()
-    exp2_gain_EQbias = exp2_gain_data.iloc[:,23:26].T.to_numpy()
-    exp2_loss_EQbias = exp2_loss_data.iloc[:,23:26].T.to_numpy()
-    
+    exp1_gain_EQbias = exp1_gain_choice.iloc[:,23:26].T.to_numpy()
+    exp1_loss_EQbias = exp1_loss_choice.iloc[:,23:26].T.to_numpy()
+    exp2_gain_EQbias = exp2_gain_choice.iloc[:,23:26].T.to_numpy()
+    exp2_loss_EQbias = exp2_loss_choice.iloc[:,23:26].T.to_numpy()
+
+    exp1_mean_gain = np.mean(exp1_gain_choice.iloc[:,23:26], axis = 0).to_numpy()  
+    exp1_mean_loss = np.mean(exp1_loss_choice.iloc[:,23:26], axis = 0).to_numpy()  
+    exp2_mean_gain = np.mean(exp2_gain_choice.iloc[:,23:26], axis = 0).to_numpy()  
+    exp2_mean_loss = np.mean(exp2_loss_choice.iloc[:,23:26], axis = 0).to_numpy()
+
     
     # make a figure and plot
     cmap = plt.cm.Paired(np.linspace(0, 1, 12))
@@ -1375,220 +1380,33 @@ def plot_individual_subjectEQbiases(exp1_gain_data, exp1_loss_data,
     fig, ax = plt.subplots(1,2, dpi = 300, figsize = (6,3))
     fig.tight_layout(h_pad=4)
 
-
-    ax[0].plot([1,2,3],exp1_gain_EQbias[:,0], color = cmap[1,:], linewidth = 1)
-    ax[0].plot([1,2,3],exp1_loss_EQbias[:,0], color = cmap[5,:], linewidth = 1)
-    ax[0].plot([1,2,3],exp1_gain_EQbias, color = cmap[1,:], linewidth = 1)
-    ax[0].plot([1,2,3],exp1_loss_EQbias, color = cmap[5,:], linewidth = 1)
+    ax[0].plot([1,2,3],exp1_mean_gain, marker='o', color = cmap[1,:], linewidth = 2)
+    ax[0].plot([1,2,3],exp1_mean_loss, marker='o', color = cmap[5,:], linewidth = 2)
+    ax[0].plot([1,2,3],exp1_gain_EQbias, color = cmap[0,:], linewidth = 1)
+    ax[0].plot([1,2,3],exp1_loss_EQbias, color = cmap[4,:], linewidth = 1)
+    ax[0].plot([1,2,3],exp1_mean_gain, marker='o', color = cmap[1,:], linewidth = 2)
+    ax[0].plot([1,2,3],exp1_mean_loss, marker='o', color = cmap[5,:], linewidth = 2)
     ax[0].set_xticks([1,2,3])
     ax[0].set_xlim([.7, 3.3])
-    ax[0].set_xticklabels({'EQ20','EQ50','EQ80'})
+    ax[0].set_xticklabels(['EQ20','EQ50','EQ80'])
     ax[0].set_xlabel('Equivaluable Condition')
     ax[0].set_ylabel('p(Choose Risky)')
     ax[0].legend({'Gain','Loss'})
-    ax[0].set_title('Exp. 1')
+    ax[0].set_title('Exp 1')
 
-    ax[1].plot([1,2,3],exp2_gain_EQbias[:,0], color = cmap[1,:], linewidth = 1)
-    ax[1].plot([1,2,3],exp2_loss_EQbias[:,0], color = cmap[5,:], linewidth = 1)
-    ax[1].plot([1,2,3],exp2_gain_EQbias, color = cmap[1,:], linewidth = 1)
-    ax[1].plot([1,2,3],exp2_loss_EQbias, color = cmap[5,:], linewidth = 1)
+    ax[1].plot([1,2,3],exp2_mean_gain, marker='o', color = cmap[1,:], linewidth = 2)
+    ax[1].plot([1,2,3],exp2_mean_loss, marker='o', color = cmap[5,:], linewidth = 2)
+    ax[1].plot([1,2,3],exp2_gain_EQbias, color = cmap[0,:], linewidth = 1)
+    ax[1].plot([1,2,3],exp2_loss_EQbias, color = cmap[4,:], linewidth = 1)
+    ax[1].plot([1,2,3],exp2_mean_gain, marker='o', color = cmap[1,:], linewidth = 2)
+    ax[1].plot([1,2,3],exp2_mean_loss, marker='o', color = cmap[5,:], linewidth = 2)
     ax[1].set_xticks([1,2,3])
     ax[1].set_xlim([.7, 3.3])
-    ax[1].set_xticklabels({'EQ20','EQ50','EQ80'})
-    ax[1].set_title('Exp. 2')
+    ax[1].set_xticklabels(['EQ20','EQ50','EQ80'])
+    ax[1].set_title('Exp 2')
 
 
 # END of function
-
-
-def plotChoice_or_RT(gaindata,lossdata,datatype):
-    '''
-    This function plots and statistically assesses either the choice or RT
-    data (as specified in the datatype argument).
-    '''
-    
-    sns.set_theme(style="ticks")  
-    palette = sns.color_palette("colorblind")
-    
-    gain_means = gaindata.mean()
-    gain_sems  = gaindata.sem()
-    loss_means = lossdata.mean()
-    loss_sems  = lossdata.sem()
-    
-    choicex = [1, 2, 3]
-    
-    fig, ax = plt.subplots(2,2,figsize=(6, 6), dpi=300)
-    fig.tight_layout(h_pad=4)
-    
-    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
-
-    # training means
-    ax[0,0].errorbar(choicex,gain_means.iloc[3:6],gain_sems.iloc[3:6],marker='o',color=cmap[1,:],label='gain, safe')
-    ax[0,0].errorbar(choicex,gain_means.iloc[6:9],gain_sems.iloc[6:9],marker='o',color=cmap[5,:],label='gain, risky')
-    ax[0,0].errorbar(choicex,loss_means.iloc[3:6],loss_sems.iloc[3:6],marker='o',color=cmap[0,:],label='loss, safe')
-    ax[0,0].errorbar(choicex,loss_means.iloc[6:9],loss_sems.iloc[6:9],marker='o',color=cmap[4,:],label='loss, risky')
-    
-    ax[0,0].set_xticks(ticks=[1,2,3])
-    ax[0,0].set_xticklabels(("20vs50","50vs80","20vs80"))
-    ax[0,0].set_xlabel('Condition')
-    
-    if datatype == 'choice':
-        ax[0,0].set_ylim(0,1)
-        ax[0,0].set_ylabel('p(Choose Best)')
-    else:
-        ax[0,0].set_ylabel('RT (ms)')
-        ax[0,0].set_ylim(200,1000)
-
-    
-    ax[0,0].legend()
-    ax[0,0].set_title('Training')
-    
-
-
-    ax[0,1].errorbar(choicex,gain_means.iloc[9:12],gain_sems.iloc[9:12],marker='o',color=cmap[1,:],label='gain, safe')
-    ax[0,1].errorbar(choicex,gain_means.iloc[12:15],gain_sems.iloc[12:15],marker='o',color=cmap[5,:],label='gain, risky')
-    ax[0,1].errorbar(choicex,loss_means.iloc[9:12],loss_sems.iloc[9:12],marker='o',color=cmap[0,:],label='gain, safe')
-    ax[0,1].errorbar(choicex,loss_means.iloc[12:15],loss_sems.iloc[12:15],marker='o',color=cmap[4,:],label='gain, risky')
-    ax[0,1].set_xticks(ticks=[1,2,3])
-    ax[0,1].set_xticklabels(("20vs50","50vs80","20vs80"))
-    ax[0,1].set_xlabel('Condition')
-    
-    if datatype == 'choice':
-        ax[0,1].set_ylim(0,1)
-        ax[0,1].set_ylabel('p(Choose Best)')
-    else:
-        ax[0,1].set_ylabel('RT (ms)')
-        ax[0,1].set_ylim(200,1000)
-    
-    ax[0,1].set_title('Pure')
-    
-    
-
-    ax[1,0].errorbar(choicex,gain_means.iloc[15:18],gain_sems.iloc[15:18],marker='o',color=cmap[1,:],label='gain, s > r')
-    ax[1,0].errorbar(choicex,gain_means.iloc[18:21],gain_sems.iloc[18:21],marker='o',color=cmap[5,:],label='gain, r > s')
-    ax[1,0].errorbar(choicex,loss_means.iloc[15:18],loss_sems.iloc[15:18],marker='o',color=cmap[0,:],label='loss, s > r')
-    ax[1,0].errorbar(choicex,loss_means.iloc[18:21],loss_sems.iloc[18:21],marker='o',color=cmap[4,:],label='loss, r > s')
-    ax[1,0].set_xticks(ticks=[1,2,3])
-    ax[1,0].set_xticklabels(("20vs50","50vs80","20vs80"))
-    ax[1,0].set_xlabel('Condition')
-      
-    if datatype == 'choice':
-          ax[1,0].set_ylim(0,1)
-          ax[1,0].set_ylabel('p(Choose Best)')
-    else:
-          ax[1,0].set_ylabel('RT (ms)')
-          ax[1,0].set_ylim(200,1000)
-     
-    ax[1,0].legend()    
-    ax[1,0].set_title('Unequal S vs R')
-    
-    
-    ax[1,1].errorbar(choicex,gain_means.iloc[21:24],gain_sems.iloc[21:24],marker='o',color=cmap[9,:],label='gain')
-    ax[1,1].errorbar(choicex,loss_means.iloc[21:24],loss_sems.iloc[21:24],marker='o',color=cmap[8,:],label='loss')
-    ax[1,1].set_xticks(ticks=[1,2,3])
-    ax[1,1].set_xticklabels(("20vs20","50vs50","80vs80"))
-    ax[1,1].set_xlabel('Condition')
- 
-    if datatype == 'choice':
-       ax[1,1].set_ylim(0,1)
-       ax[1,1].set_ylabel('p(Choose Risky)')
-       ax[1,1].plot(choicex,np.array([.5,.5,.5]),color='tab:gray')
-    else:
-       ax[1,1].set_ylabel('RT (ms)')
-       ax[1,1].set_ylim(200,1000)
-    
-    ax[1,1].set_title('Equal S vs R')
-    
-    #----------------------------------
-    #              stats 
-    #----------------------------------
-    if datatype == 'choice':
-        loss_choicedataonly = lossdata.iloc[:,5:]
-        gain_choicedataonly = gaindata.iloc[:,5:]
-        
-        # initialize results dataframes
-        loss_choice_stats=pd.DataFrame()
-        gain_choice_stats=pd.DataFrame()
-        
-        # do a t-test of every condition against chance (50%)
-        for cond in range(loss_choicedataonly.shape[1]):
-            
-            loss_choice_stats = loss_choice_stats.append(pg.ttest(loss_choicedataonly.iloc[:,cond],.5))
-            gain_choice_stats = gain_choice_stats.append(pg.ttest(gain_choicedataonly.iloc[:,cond],.5))
-       
-        # rename the rows so we can inspect later
-        loss_choice_stats.index = loss_choicedataonly.columns
-        gain_choice_stats.index = gain_choicedataonly.columns
-    # END of t-testing choice data against chance 
-    
-    
-    # do repeated measures anovas for the conditions 
-    alldata = gaindata.append(lossdata)
-    
-    # TRAINING   
-    train_responses = alldata.melt(id_vars = ['vpnum','context'],
-                                   value_vars=['t_s_20v50','t_s_50v80','t_s_20v80',
-                                               't_r_20v50','t_r_50v80','t_r_20v80'])
-    
-    train_responses['stimtype'] = train_responses['variable'].str.contains('r').astype(int)
-    
-    train_responses['cond'] = np.zeros(len(train_responses)).astype(int)
-    train_responses['cond'].loc[train_responses['variable'].str.contains('20v50')] = 1
-    train_responses['cond'].loc[train_responses['variable'].str.contains('50v80')] = 2
-    train_responses['cond'].loc[train_responses['variable'].str.contains('20v80')] = 3
-    
-    train_mdl = AnovaRM(data = train_responses, depvar='value',subject = 'vpnum',
-                            within=['cond','context','stimtype']).fit()
-    
-    train_results = train_mdl.anova_table
-    
- 
-    # PURE
-    pure_responses = alldata.melt(id_vars = ['vpnum','context'],
-                                   value_vars=['s_20v50','s_50v80','s_20v80',
-                                               'r_20v50','r_50v80','r_20v80'])
-    
-    pure_responses['stimtype'] = pure_responses['variable'].str.contains('r').astype(int)
-    
-    pure_responses['cond'] = np.zeros(len(pure_responses)).astype(int)
-    pure_responses['cond'].loc[pure_responses['variable'].str.contains('20v50')] = 1
-    pure_responses['cond'].loc[pure_responses['variable'].str.contains('50v80')] = 2
-    pure_responses['cond'].loc[pure_responses['variable'].str.contains('20v80')] = 3
-    
-    pure_mdl = AnovaRM(data = pure_responses, depvar='value',subject = 'vpnum',
-                            within=['cond','context','stimtype']).fit()
-    
-    pure_results = pure_mdl.anova_table
-    
-    # UNEQUAL Safe vs Risky
-    UE_responses = alldata.melt(id_vars = ['vpnum','context'],
-                                   value_vars=['UE_s_20v50','UE_s_50v80','UE_s_20v80',
-                                               'UE_r_20v50','UE_r_50v80','UE_r_20v80'])
-    
-    UE_responses['stimtype'] = UE_responses['variable'].str.contains('r').astype(int)
-    
-    UE_responses['cond'] = np.zeros(len(UE_responses)).astype(int)
-    UE_responses['cond'].loc[UE_responses['variable'].str.contains('20v50')] = 1
-    UE_responses['cond'].loc[UE_responses['variable'].str.contains('50v80')] = 2
-    UE_responses['cond'].loc[UE_responses['variable'].str.contains('20v80')] = 3
-    
-    UE_mdl = AnovaRM(data = UE_responses, depvar='value',subject = 'vpnum',
-                            within=['cond','context','stimtype']).fit()
-    
-    UE_results = UE_mdl.anova_table
-    
-    # EQUAL Safe vs Risky
-    EQ_responses = alldata.melt(id_vars = ['vpnum','context'],
-                                   value_vars=['EQ20','EQ50','EQ80'])
-    EQ_responses=EQ_responses.rename(columns={'variable':'prob'})
-    
-    EQ_mdl = AnovaRM(data = EQ_responses, depvar='value',subject = 'vpnum',
-                            within=['context','prob']).fit()
-    
-    EQ_results = EQ_mdl.anova_table
-    
-    xx=[]   # set your breakpoint here to look at stats!    
-# END of plotChoice_or_RT
 
 
 def win_stay_analysis(alldata):
@@ -1671,154 +1489,295 @@ def win_stay_analysis(alldata):
 # END of WinStayAnalysis
 
 
+def plotWinStay(exp1_gain_winstay,exp1_loss_winstay,exp2_gain_winstay,exp2_loss_winstay,
+                exp1_gain_choice, exp1_loss_choice, exp2_gain_choice, exp2_loss_choice):
 
-def lose_stay_analysis(alldata):
     '''
-    This analysis looks for instances where a certain option was chosen 
-    and yielded a zero outcome and asks how likely the person is to select
-    that option the next time it's presented (i.e. p(Lose-Stay)).
+    This function plots and statistically assesses the win-stay data from Exps 1 and 2. 
+    Linear mixed effects models were used for the analysis and the summaries of the 
+    resulting models are stored in:
+
+    outdata = a dict containing the lme model summaries
+
+    access the data like so:
+    print(outdata['exp1'])
+    or
+    print(outdata['exp2'])
+    or
+    print(outdata['combined'])
     '''
 
-    # get subject IDs and image IDs
-    sIDs = alldata.vpNum.unique()
-    img_IDs = alldata.imageNumberLeft.unique()
+    # prep data for linear mixed effects models for EQbias and win-stay data
+    exp1_gain_df =pd.DataFrame()
+    exp1_gain_df['WSdiffs'] = np.concatenate([exp1_gain_winstay[:,3] - exp1_gain_winstay[:,0],
+                                              exp1_gain_winstay[:,4] - exp1_gain_winstay[:,1],  
+                                              exp1_gain_winstay[:,5] - exp1_gain_winstay[:,2]])
 
-    
-    # initialize the results array
-    losestay = np.zeros(shape = (len(sIDs),len(img_IDs)))
-    losestay[:] = np.nan
-    
-    # loop through each subject
-    for s in range(len(sIDs)):
-        
-        sdata = alldata.loc[alldata.vpNum ==sIDs[s],:]
-        
-        # define trial stim
-        stim = np.zeros(shape = (len(sdata),2))
-        stim[:,0] = sdata.imageNumberLeft
-        stim[:,1] = sdata.imageNumberRight
-        stim = stim.astype(int)
-        
-        # what direction did the person pick each time?
-        humanchoiceside = (sdata.responseSide == 'right').astype(int)
-        
-        # initialize an array of what the person picked
-        humanchoice = np.zeros(shape = len(humanchoiceside))
-
-        # figure out which image was chosen on each trial by the person
-        for t in range(len(sdata)):
-            
-            humanchoice[t] = stim[t,humanchoiceside[t]]
-         
-            humanchoice = humanchoice.astype(int)
-                
-        
-        for stimnum in range(len(img_IDs)):
-            
-            stimintrial = (stim[:,0] == stimnum) | (stim[:,1] == stimnum)
-            stim_tnums =  np.argwhere(stimintrial)
-
-            
-            # find all instances where this stimulus was chosen and yielded a miss         
-            stimmiss = (humanchoice == stimnum) & (sdata.rewardCode ==0)
-
-            
-            # get trial numbers
-            miss_tnums = stimmiss.index[stimmiss]
-            
-            stim_ls = np.zeros(shape = len(miss_tnums))
-            stim_ls[:] = np.nan
-            
-            # loop through each of these trials and find the next time this
-            # stim was present           
-            for i in range(len(miss_tnums)-1):
-                
-                trialsinrange = stim_tnums > miss_tnums[i]
-                trialsinrange = np.argwhere(trialsinrange)  
-                
-                nexttrial_ix = trialsinrange[0,0]
-                nexttrial    = stim_tnums[nexttrial_ix]
-                stim_ls[i] = (humanchoice[nexttrial] == stimnum).astype(int)
-
-            # END of looping over trials where a hit occurred
-            
-            losestay[s,stimnum] = np.nanmean(stim_ls)  
-        # END of looping over stimuli
-    # END of looping over subjects.
-    
-    # set nan to zeros
-    losestay = np.nan_to_num(losestay)
-
-    xx=[] # for setting a breakpoint
-               
-    return losestay          
-# END of WinStayAnalysis
+    exp1_gain_df['EQbias'] = np.concatenate([exp1_gain_choice['EQ20'],
+                                            exp1_gain_choice['EQ50'],
+                                            exp1_gain_choice['EQ80']])
 
 
+    exp1_gain_df['prob'] = np.concatenate([np.ones(shape = (len(exp1_gain_winstay),))*.2,
+                                           np.ones(shape = (len(exp1_gain_winstay),))*.5,
+                                           np.ones(shape = (len(exp1_gain_winstay),))*.8])
+    exp1_gain_df['subj'] = np.concatenate([np.arange(len(exp1_gain_winstay)),
+                                           np.arange(len(exp1_gain_winstay)),
+                                           np.arange(len(exp1_gain_winstay))])
+
+    exp2_gain_df =pd.DataFrame()
+    exp2_gain_df['WSdiffs'] = np.concatenate([exp2_gain_winstay[:,3] - exp2_gain_winstay[:,0],
+                                              exp2_gain_winstay[:,4] - exp2_gain_winstay[:,1],  
+                                              exp2_gain_winstay[:,5] - exp2_gain_winstay[:,2]])
+
+    exp2_gain_df['EQbias'] = np.concatenate([exp2_gain_choice['EQ20'],
+                                            exp2_gain_choice['EQ50'],
+                                            exp2_gain_choice['EQ80']])
 
 
-def plotWinStay_LoseStay(gain_winstay,loss_winstay,gain_losestay,loss_losestay):
-        
+    exp2_gain_df['prob'] = np.concatenate([np.ones(shape = (len(exp2_gain_winstay),))*.2,
+                                           np.ones(shape = (len(exp2_gain_winstay),))*.5,
+                                           np.ones(shape = (len(exp2_gain_winstay),))*.8])
+    exp2_gain_df['subj'] = np.concatenate([np.arange(len(exp2_gain_winstay)),
+                                           np.arange(len(exp2_gain_winstay)),
+                                           np.arange(len(exp2_gain_winstay))])
+
+    #---
+    exp1_loss_df =pd.DataFrame()
+    exp1_loss_df['WSdiffs'] = np.concatenate([exp1_loss_winstay[:,3] - exp1_loss_winstay[:,0],
+                                              exp1_loss_winstay[:,4] - exp1_loss_winstay[:,1],  
+                                              exp1_loss_winstay[:,5] - exp1_loss_winstay[:,2]])
+
+    exp1_loss_df['EQbias'] = np.concatenate([exp1_loss_choice['EQ20'],
+                                            exp1_loss_choice['EQ50'],
+                                            exp1_loss_choice['EQ80']])
+
+
+    exp1_loss_df['prob'] = np.concatenate([np.ones(shape = (len(exp1_loss_winstay),))*.2,
+                                           np.ones(shape = (len(exp1_loss_winstay),))*.5,
+                                           np.ones(shape = (len(exp1_loss_winstay),))*.8])
+    exp1_loss_df['subj'] = np.concatenate([np.arange(len(exp1_loss_winstay)),
+                                           np.arange(len(exp1_loss_winstay)),
+                                           np.arange(len(exp1_loss_winstay))])
+
+    exp2_loss_df =pd.DataFrame()
+    exp2_loss_df['WSdiffs'] = np.concatenate([exp2_loss_winstay[:,3] - exp2_loss_winstay[:,0],
+                                              exp2_loss_winstay[:,4] - exp2_loss_winstay[:,1],  
+                                              exp2_loss_winstay[:,5] - exp2_loss_winstay[:,2]])
+
+    exp2_loss_df['EQbias'] = np.concatenate([exp2_loss_choice['EQ20'],
+                                            exp2_loss_choice['EQ50'],
+                                            exp2_loss_choice['EQ80']])
+
+
+    exp2_loss_df['prob'] = np.concatenate([np.ones(shape = (len(exp2_loss_winstay),))*.2,
+                                           np.ones(shape = (len(exp2_loss_winstay),))*.5,
+                                           np.ones(shape = (len(exp2_loss_winstay),))*.8])
+    exp2_loss_df['subj'] = np.concatenate([np.arange(len(exp2_loss_winstay)),
+                                           np.arange(len(exp2_loss_winstay)),
+                                           np.arange(len(exp2_loss_winstay))])
+
+    # fit the lmes
+    exp1_gain_mdl = smf.mixedlm('EQbias ~ WSdiffs', exp1_gain_df, groups = 'subj').fit()
+    exp2_gain_mdl = smf.mixedlm('EQbias ~ WSdiffs', exp2_gain_df, groups = 'subj').fit()
+    exp1_loss_mdl = smf.mixedlm('EQbias ~ WSdiffs', exp1_loss_df, groups = 'subj').fit()
+    exp2_loss_mdl = smf.mixedlm('EQbias ~ WSdiffs', exp2_loss_df, groups = 'subj').fit()
+
     
     # define colormap for plotting 
     cmap = plt.cm.Paired(np.linspace(0, 1, 12))
     
     # get means and sems
-    gain_WS_mean = np.nanmean(gain_winstay,axis=0)
-    gain_WS_sem  = np.nanstd(gain_winstay,axis=0) / np.sqrt(len(gain_winstay[:,1]))
+    exp1_gain_WS_mean = np.nanmean(exp1_gain_winstay,axis=0)
+    exp1_gain_WS_sem  = np.nanstd(exp1_gain_winstay,axis=0) / np.sqrt(len(exp1_gain_winstay[:,1]))
     
-    loss_WS_mean = np.nanmean(loss_winstay,axis=0)
-    loss_WS_sem  = np.nanstd(loss_winstay,axis=0)/ np.sqrt(len(loss_winstay[:,1]))
+    exp1_loss_WS_mean = np.nanmean(exp1_loss_winstay,axis=0)
+    exp1_loss_WS_sem  = np.nanstd(exp1_loss_winstay,axis=0)/ np.sqrt(len(exp1_loss_winstay[:,1]))
+
+    exp2_gain_WS_mean = np.nanmean(exp2_gain_winstay,axis=0)
+    exp2_gain_WS_sem  = np.nanstd(exp2_gain_winstay,axis=0) / np.sqrt(len(exp2_gain_winstay[:,1]))
+    
+    exp2_loss_WS_mean = np.nanmean(exp2_loss_winstay,axis=0)
+    exp2_loss_WS_sem  = np.nanstd(exp2_loss_winstay,axis=0)/ np.sqrt(len(exp2_loss_winstay[:,1]))
     
     xvals = np.array([.2,.5,.8])
     
-    fig, ax = plt.subplots(2,2,figsize=(6, 3), dpi=300)
-    fig.tight_layout(h_pad=4)
+    fig, ax = plt.subplots(3,2,figsize=(10, 15), dpi=300)
+    fig.subplots_adjust(wspace=2)
+    fig.tight_layout(h_pad = 6)
     
-    plt.subplot(1, 2, 1)
-    plt.errorbar(xvals,gain_WS_mean[0:3],gain_WS_sem[0:3],label='gain, safe',
-                 color=cmap[1,:], LineWidth = 2, marker = '.')
-    plt.errorbar(xvals,gain_WS_mean[3:7],gain_WS_sem[3:7],label='gain, risky',
-                 color=cmap[0,:], LineWidth = 2, marker = '.')
-    plt.xlabel('p(Gain)')
-    plt.ylabel('p(Hit-Stay)')
-    plt.xticks(xvals)
-    plt.ylim([0,1])
-    plt.legend()
+    plt.subplot(3, 2, 1)
+    plt.errorbar(xvals,exp1_gain_WS_mean[0:3],exp1_gain_WS_sem[0:3],label='gain, safe',
+                 color=cmap[1,:], LineWidth = 3, marker = '.')
+    plt.errorbar(xvals,exp1_gain_WS_mean[3:7],exp1_gain_WS_sem[3:7],label='gain, risky',
+                 color=cmap[0,:], LineWidth = 3, marker = '.')
+    plt.errorbar(xvals,exp1_loss_WS_mean[0:3],exp1_loss_WS_sem[0:3],label='loss, safe',
+                 color=cmap[5,:], LineWidth = 3, marker = '.')
+    plt.errorbar(xvals,exp1_loss_WS_mean[3:7],exp1_loss_WS_sem[3:7],label='loss, risky',
+                 color=cmap[4,:], LineWidth = 3, marker = '.')
     
-    plt.subplot(1, 2, 2)
-    plt.errorbar(xvals,loss_WS_mean[0:3],loss_WS_sem[0:3],label='loss, safe',
-                 color=cmap[5,:], LineWidth = 2, marker = '.')
-    plt.errorbar(xvals,loss_WS_mean[3:7],loss_WS_sem[3:7],label='loss, risky',
-                 color=cmap[4,:], LineWidth = 2, marker = '.')
-    plt.xlabel('p(Loss)')
-    plt.ylabel('p(Miss-Stay)')
-    plt.xticks(xvals)
+    plt.xlabel('p(Gain or Loss)', fontsize = 16)
+    plt.ylabel('p(Win-Stay)', fontsize = 16)
+    plt.xticks(xvals, fontsize =14)
+    plt.yticks([0,.5,1], fontsize = 14)
     plt.ylim([0,1])
-    plt.legend()
+    plt.legend(ncol=2, fontsize = 12)
+    plt.title('Exp 1', fontsize = 16)
+    
+    plt.subplot(3, 2, 2)
+    plt.errorbar(xvals,exp2_gain_WS_mean[0:3],exp2_gain_WS_sem[0:3],label='gain, safe',
+                 color=cmap[1,:], LineWidth = 3, marker = '.')
+    plt.errorbar(xvals,exp2_gain_WS_mean[3:7],exp2_gain_WS_sem[3:7],label='gain, risky',
+                 color=cmap[0,:], LineWidth = 3, marker = '.')
+    plt.errorbar(xvals,exp2_loss_WS_mean[0:3],exp2_loss_WS_sem[0:3],label='loss, safe',
+                 color=cmap[5,:], LineWidth = 3, marker = '.')
+    plt.errorbar(xvals,exp2_loss_WS_mean[3:7],exp2_loss_WS_sem[3:7],label='loss, risky',
+                 color=cmap[4,:], LineWidth = 3, marker = '.')
+    plt.xticks(xvals, fontsize = 14)
+    plt.yticks([0,.5,1], fontsize = 14)
+    plt.ylim([0,1])
+    plt.title('Exp 2', fontsize = 16)
+
+
+    # now relate EQ biases to win-stay
+    plt.subplot(3,2,3)
+    plt.scatter(exp1_gain_winstay[:,3] - exp1_gain_winstay[:,0], exp1_gain_choice['EQ20'], label = '20%')
+    plt.scatter(exp1_gain_winstay[:,4] - exp1_gain_winstay[:,1], exp1_gain_choice['EQ50'], label = '50%')
+    plt.scatter(exp1_gain_winstay[:,5] - exp1_gain_winstay[:,2], exp1_gain_choice['EQ80'], label = '80%')
+    # get xlims
+    xlims = np.array(plt.gca().get_xlim())
+    plt.plot(xlims, (xlims*exp1_gain_mdl.params[1]) + exp1_gain_mdl.params[0], color = 'black', linewidth = 2) 
+    plt.legend(fontsize = 14)
+    plt.xticks(fontsize = 14)
+    plt.yticks(fontsize = 14)
+    plt.ylabel('p(Choose Risky in =SvsR)', fontsize = 14)
+    plt.xlabel('p(Win-Stay Safe - Risky)', fontsize = 14)
+    plt.title('Exp 1 - Gain', fontsize = 14)
+
+    plt.subplot(3,2,5)
+    plt.scatter(exp1_loss_winstay[:,3] - exp1_loss_winstay[:,0], exp1_loss_choice['EQ20'], label = '20%')
+    plt.scatter(exp1_loss_winstay[:,4] - exp1_loss_winstay[:,1], exp1_loss_choice['EQ50'], label = '50%')
+    plt.scatter(exp1_loss_winstay[:,5] - exp1_loss_winstay[:,2], exp1_loss_choice['EQ80'], label = '80%')
+    xlims = np.array(plt.gca().get_xlim())
+    plt.plot(xlims, (xlims*exp1_loss_mdl.params[1]) + exp1_loss_mdl.params[0], color = 'black', linewidth = 2) 
+    plt.xticks(fontsize = 14)
+    plt.yticks(fontsize = 14)
+    plt.xlabel('p(Win-Stay Safe - Risky)', fontsize = 14)
+    plt.ylabel('p(Choose Risky in =SvsR)', fontsize = 14)
+    plt.title('Exp 1 - Loss', fontsize = 14)
+
+
+    plt.subplot(3,2,4)
+    plt.scatter(exp2_gain_winstay[:,3] - exp2_gain_winstay[:,0], exp2_gain_choice['EQ20'], label = '20%')
+    plt.scatter(exp2_gain_winstay[:,4] - exp2_gain_winstay[:,1], exp2_gain_choice['EQ50'], label = '50%')
+    plt.scatter(exp2_gain_winstay[:,5] - exp2_gain_winstay[:,2], exp2_gain_choice['EQ80'], label = '80%')
+    xlims = np.array(plt.gca().get_xlim())
+    plt.plot(xlims, (xlims*exp2_gain_mdl.params[1]) + exp2_gain_mdl.params[0], color = 'black', linewidth = 2) 
+    plt.xticks(fontsize = 14)
+    plt.yticks(fontsize = 14)
+    plt.xlabel('p(Win-Stay Safe - Risky)', fontsize = 14)
+    plt.title('Exp 2 - Gain', fontsize = 14)
+
+    plt.subplot(3,2,6)
+    plt.scatter(exp2_loss_winstay[:,3] - exp2_loss_winstay[:,0], exp2_loss_choice['EQ20'], label = '20%')
+    plt.scatter(exp2_loss_winstay[:,4] - exp2_loss_winstay[:,1], exp2_loss_choice['EQ50'], label = '50%')
+    plt.scatter(exp2_loss_winstay[:,5] - exp2_loss_winstay[:,2], exp2_loss_choice['EQ80'], label = '80%')
+    xlims = np.array(plt.gca().get_xlim())
+    plt.plot(xlims, (xlims*exp2_loss_mdl.params[1]) + exp2_loss_mdl.params[0], color = 'black', linewidth = 2) 
+    plt.xticks(fontsize = 14)
+    plt.yticks(fontsize = 14)
+    plt.xlabel('p(Win-Stay Safe - Risky)', fontsize = 14)
+    plt.title('Exp 2 - Loss', fontsize = 14)
+
+
+
+
+
+
     
 
-    # prepare data for linear mixed effects model
+    # prepare data for linear mixed effects model for the win-stay data alone
     
     # subject factor
-    subj_ids = np.arange(len(gain_winstay))
-    probs = np.array([1,2,3,1,2,3])
+    subj_ids = np.arange(len(exp1_gain_winstay))
+    probs = np.array([.2,.5,.8,.2,.5,.8])
     stim_type = np.array([1,1,1,-1,-1,-1])
 
-    #set NaN to zeros
-     
+    # prep subject arrays
+    exp1_subjects = np.ones_like(exp1_gain_winstay)
+    exp2_subjects = np.ones_like(exp2_gain_winstay)
+
+    for s in range(len(exp1_gain_winstay)):
+        exp1_subjects[s,:] = s
+
+    for s in range(len(exp2_gain_winstay)):
+        exp2_subjects[s,:] = s+100
+
+    
+    # Do some linear mixed effects modelling
+    #----------
+    # EXPERIMENT 1
+    #----------
     # initialize dataframe for lmemodel
     lmedata = pd.DataFrame()
-    lmedata['gain_winstay'] = gain_winstay.reshape(-1,1).flatten()
-    lmedata['loss_winstay'] = loss_winstay.reshape(-1,1).flatten()
+    lmedata['gain_winstay'] = exp1_gain_winstay.reshape(-1,1).flatten()
+    lmedata['loss_winstay'] = exp1_loss_winstay.reshape(-1,1).flatten()
     lmedata['stim_type']    = np.matlib.repmat(stim_type,int(len(lmedata.gain_winstay)/len(stim_type)),1).flatten()
     lmedata['prob']         = np.matlib.repmat(probs,int(len(lmedata.gain_winstay)/len(probs)),1).flatten()
-    lmedata['subj'] = np.matlib.repmat(subj_ids,int(len(lmedata.gain_winstay)/len(subj_ids)),1).flatten()
+    lmedata['subj']         = exp1_subjects.reshape(-1,1).flatten()
 
-    # now fit the linear mixed effects models
-    gain_mdl = smf.mixedlm('gain_winstay ~ prob*stim_type', lmedata, groups=lmedata['subj']).fit()
-    loss_mdl = smf.mixedlm('loss_winstay ~ prob*stim_type', lmedata, groups=lmedata['subj']).fit()
-  
+    # try making a combined model
+    exp1_lmedata = pd.DataFrame()
+    exp1_lmedata['winstay'] = np.concatenate([lmedata['gain_winstay'].values,lmedata['loss_winstay'].values])
+    exp1_lmedata['stim_type'] = np.concatenate([lmedata['stim_type'].values ,lmedata['stim_type'].values ])
+    exp1_lmedata['prob'] = np.concatenate([lmedata['prob'].values ,lmedata['prob'].values ])
+    exp1_lmedata['subject'] = np.concatenate([lmedata['subj'].values ,lmedata['subj'].values ])
+    exp1_lmedata['context'] = np.concatenate([np.ones(shape=(len(lmedata),)), np.ones(shape=(len(lmedata),))*-1])
+
+    # fit the model
+    exp1_lme_mdl = smf.mixedlm('winstay ~ prob*stim_type*context', exp1_lmedata, 
+                                groups=exp1_lmedata['subject']).fit(method=["powell", "lbfgs"])
+
+    #----------
+    # EXPERIMENT 2
+    #----------
+    # initialize dataframe for lmemodel
+    lmedata2 = pd.DataFrame()
+    lmedata2['gain_winstay'] = exp2_gain_winstay.reshape(-1,1).flatten()
+    lmedata2['loss_winstay'] = exp2_loss_winstay.reshape(-1,1).flatten()
+    lmedata2['stim_type']    = np.matlib.repmat(stim_type,int(len(lmedata2.gain_winstay)/len(stim_type)),1).flatten()
+    lmedata2['prob']         = np.matlib.repmat(probs,int(len(lmedata2.gain_winstay)/len(probs)),1).flatten()
+    lmedata2['subj']         = exp2_subjects.reshape(-1,1).flatten()
+
+    # try making a combined model
+    exp2_lmedata = pd.DataFrame()
+    exp2_lmedata['winstay'] = np.concatenate([lmedata2['gain_winstay'].values,lmedata2['loss_winstay'].values])
+    exp2_lmedata['stim_type'] = np.concatenate([lmedata2['stim_type'].values ,lmedata2['stim_type'].values ])
+    exp2_lmedata['prob'] = np.concatenate([lmedata2['prob'].values ,lmedata2['prob'].values ])
+    exp2_lmedata['subject'] = np.concatenate([lmedata2['subj'].values ,lmedata2['subj'].values ])
+    exp2_lmedata['context'] = np.concatenate([np.ones(shape=(len(lmedata2),)), np.ones(shape=(len(lmedata2),))*-1])
+
+    # fit the model
+    exp2_lme_mdl = smf.mixedlm('winstay ~ prob*stim_type*context', exp1_lmedata, 
+                                groups=exp2_lmedata['subject']).fit(method=["powell", "lbfgs"])
+
+    #----------
+    # Combine data across experiments
+    #----------
+    alldata = pd.DataFrame()
+    alldata = pd.concat([exp1_lmedata, exp2_lmedata], ignore_index=True)
+    alldata['exp'] = np.concatenate([np.ones(shape = (len(exp1_lmedata),)), np.ones(shape = (len(exp2_lmedata),))*-1])
+
+    all_lme_mdl = smf.mixedlm('winstay ~ prob*stim_type*context*exp', alldata, 
+                                groups=alldata['subject']).fit(method=["powell", "lbfgs"])
+        
+    outdata = {}
+    outdata['exp1'] = exp1_lme_mdl.summary()
+    outdata['exp2'] = exp2_lme_mdl.summary()
+    outdata['combined'] = all_lme_mdl.summary()
+
+    return outdata
+
 # END of plotWinStay
 
 
@@ -2131,7 +2090,7 @@ def both_exp_distRLxEQbias(exp1_gain_bestparams, exp1_loss_bestparams,
     exp1_lmedata['subject'] = np.concatenate([np.arange(n_subs1),np.arange(n_subs1)])
     
     # fit the model
-    exp1_RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias', exp1_lmedata, groups=exp1_lmedata['subject']).fit()
+    exp1_RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias*context', exp1_lmedata, groups=exp1_lmedata['subject']).fit()
     
     # extract intercept and beta for distRL quantile
     exp1_params = exp1_RLxbias_mdl.params
@@ -2146,7 +2105,7 @@ def both_exp_distRLxEQbias(exp1_gain_bestparams, exp1_loss_bestparams,
     exp2_lmedata['subject'] = np.concatenate([np.arange(n_subs2),np.arange(n_subs2)])
     
     # fit the model
-    exp2_RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias', exp2_lmedata, groups=exp2_lmedata['subject']).fit()
+    exp2_RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias*context', exp2_lmedata, groups=exp2_lmedata['subject']).fit()
     
     # extract intercept and beta for distRL quantile
     exp2_params = exp2_RLxbias_mdl.params
