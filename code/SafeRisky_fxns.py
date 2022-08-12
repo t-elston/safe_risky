@@ -23,6 +23,11 @@ import math
 import scipy as sp
 import utils as ut
 
+# these imports make exported figures have editable text
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+
 
 def load_processData(datadir,context): 
         
@@ -202,14 +207,14 @@ def load_processData(datadir,context):
             
             # main block unequal trials
             # safe is better
-            pChoicedata.at[ctr,'UE_s_20v50'] = np.nanmean(picked_best[UE & t20v50 & riskybest])
-            pChoicedata.at[ctr,'UE_s_50v80'] = np.nanmean(picked_best[UE & t50v80 & riskybest])
-            pChoicedata.at[ctr,'UE_s_20v80'] = np.nanmean(picked_best[UE & t20v80 & riskybest])
+            pChoicedata.at[ctr,'UE_s_20v50'] = np.nanmean(picked_best[UE & t20v50 & safebest])
+            pChoicedata.at[ctr,'UE_s_50v80'] = np.nanmean(picked_best[UE & t50v80 & safebest])
+            pChoicedata.at[ctr,'UE_s_20v80'] = np.nanmean(picked_best[UE & t20v80 & safebest])
             
             # risky is better
-            pChoicedata.at[ctr,'UE_r_20v50'] = np.nanmean(picked_best[UE & t20v50 & safebest])
-            pChoicedata.at[ctr,'UE_r_50v80'] = np.nanmean(picked_best[UE & t50v80 & safebest])
-            pChoicedata.at[ctr,'UE_r_20v80'] = np.nanmean(picked_best[UE & t20v80 & safebest])
+            pChoicedata.at[ctr,'UE_r_20v50'] = np.nanmean(picked_best[UE & t20v50 & riskybest])
+            pChoicedata.at[ctr,'UE_r_50v80'] = np.nanmean(picked_best[UE & t50v80 & riskybest])
+            pChoicedata.at[ctr,'UE_r_20v80'] = np.nanmean(picked_best[UE & t20v80 & riskybest])
             
             # main block equivaluable trials
             pChoicedata.at[ctr,'EQ20'] = np.nanmean(picked_risky[t20v20])
@@ -1288,6 +1293,11 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     ax7.set_xticks([1,2,3])
     ax7.set_yticks(eq_ytcks)
     ax7.set_xticklabels(['EQ20', 'EQ50', 'EQ80'])
+
+    plt.savefig("Supplemental fig 3 - RTs.svg", transparent=True)
+
+
+
  
     
 # END of function
@@ -1357,6 +1367,8 @@ def compare_both_experiments_risk_preference(exp1_gain_choice, exp1_loss_choice,
     ax.set_xlabel('Experiment #')
     ax.set_ylabel('p(Choose Risky)')
     ax.legend()
+
+    
 # END of function
 
 
@@ -1404,7 +1416,6 @@ def plot_individual_subjectEQbiases(exp1_gain_choice, exp1_loss_choice,
     ax[1].set_xlim([.7, 3.3])
     ax[1].set_xticklabels(['EQ20','EQ50','EQ80'])
     ax[1].set_title('Exp 2')
-
 
 # END of function
 
@@ -2258,6 +2269,9 @@ def both_exp_distRLxEQbias(exp1_gain_bestparams, exp1_loss_bestparams,
     ax5.set_yticks(ticks = np.array([0, .5, 1]))
     ax5.set_xlim([0,1])
     ax5.set_ylim([0,1])
+
+    
+
 
   
     xx=[] 
