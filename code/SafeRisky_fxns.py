@@ -61,6 +61,7 @@ def load_processData(datadir,context):
         # get overall training performance so we can reject subjects
         all_train_ix = df.phase == "training"
         all_exp_ix   = df.phase == "exp"
+        trials2include = all_train_ix | all_exp_ix
         all_safe_ix  = (df.imgLeftType == 'Safe') & (df.imgRightType == 'Safe')
         all_risky_ix = (df.imgLeftType == 'Risky') & (df.imgRightType == 'Risky')
         gain_ix = df.blkType == 'Gain'
@@ -70,10 +71,10 @@ def load_processData(datadir,context):
         all_picked_best = df.highProbSelected.astype(int)
         
         # get subject overall performance       
-        gs_perf = all_picked_best[all_exp_ix & gain_ix & all_safe_ix].mean()
-        gr_perf = all_picked_best[all_exp_ix & gain_ix & all_risky_ix].mean()
-        ls_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_safe_ix].mean()
-        lr_perf = 1-all_picked_best[all_exp_ix & loss_ix & all_risky_ix].mean()
+        gs_perf = all_picked_best[trials2include & gain_ix & all_safe_ix].mean()
+        gr_perf = all_picked_best[trials2include & gain_ix & all_risky_ix].mean()
+        ls_perf = 1-all_picked_best[trials2include & loss_ix & all_safe_ix].mean()
+        lr_perf = 1-all_picked_best[trials2include & loss_ix & all_risky_ix].mean()
         
         p_perf[i,:] = np.array([gs_perf,gr_perf,ls_perf,lr_perf])
         
