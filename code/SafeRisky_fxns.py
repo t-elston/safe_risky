@@ -1295,7 +1295,7 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     ax7.set_yticks(eq_ytcks)
     ax7.set_xticklabels(['EQ20', 'EQ50', 'EQ80'])
 
-    plt.savefig("Supplemental fig 3 - RTs.svg", transparent=True)
+    plt.savefig("Fig 2 - choices.svg", transparent=True)
 
 
 
@@ -1365,7 +1365,7 @@ def compare_both_experiments_risk_preference(exp1_gain_choice, exp1_loss_choice,
                        [exp1_loss_sem, exp2_loss_sem],marker='o',color=cmap[5,:],label='Loss')
     ax.set_xticks([1,2])
     ax.set_xlim([.7, 2.3])
-    ax.set_xlabel('Experiment #')
+    ax.set_xlabel('Experiment')
     ax.set_ylabel('p(Choose Risky)')
     ax.legend()
 
