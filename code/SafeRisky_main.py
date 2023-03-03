@@ -14,7 +14,7 @@ importlib.reload(sr)
 #%% set data directories
 # working from lab
 exp1_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp1_data/'
-exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp2_data/'
+exp2_dir = 'C:/Users/Thomas Elston/Documents/PYTHON/SafeRisky/exp3_data/'
 
 # working from home
 #exp1_dir = '/Users/thomaselston/Documents/PYTHON/SafeRisky/exp1_data/'

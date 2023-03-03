@@ -4,7 +4,7 @@ Code for analyzing safe vs risky human data
 
 @author: Thomas Elston
 """
-
+#--------------------------
 import os
 import pandas as pd
 import numpy as np
@@ -22,12 +22,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import math
 import scipy as sp
 import utils as ut
-
-# these imports make exported figures have editable text
-import matplotlib
-matplotlib.rcParams['pdf.fonttype'] = 42
-matplotlib.rcParams['ps.fonttype'] = 42
-
+#--------------------------
 
 def load_processData(datadir,context): 
         
@@ -45,7 +40,6 @@ def load_processData(datadir,context):
     
     # array of subject performance
     p_perf = np.zeros((len(fnames),4))
-
 
     ctr = 0
     
@@ -81,8 +75,6 @@ def load_processData(datadir,context):
         # inclusion crit for overall perf
         c = 0.60
     
-        
-        #if (gs_perf > c) & (gr_perf > c) & (ls_perf > c) & (lr_perf > c):
         if np.nanmean(p_perf[i,:]) > c:
   
             # only assess the context specified as input argument
@@ -185,8 +177,16 @@ def load_processData(datadir,context):
             pChoicedata.at[ctr,'vpnum']   = df.vpNum[0]
             pChoicedata.at[ctr,'version'] = df.version[0]
             pChoicedata.at[ctr,'context'] = context
-            pChoicedata.at[ctr,'age']     = df.age[0]
-            pChoicedata.at[ctr,'sex']     = df.gender[0]
+
+            if 'age' in df:
+                pChoicedata.at[ctr,'age']     = df.age[0]
+            else:
+                pChoicedata.at[ctr,'age'] = np.nan
+
+            if 'gender' in df:
+                pChoicedata.at[ctr,'sex']     = df.gender[0]
+            else:
+                pChoicedata.at[ctr,'sex']     = 'na'
             
             # look at training choice data
             pChoicedata.at[ctr,'t_s_20v50'] = np.nanmean(picked_best[trainix & t20v50 & safe_ix])
@@ -227,8 +227,16 @@ def load_processData(datadir,context):
             pRTdata.at[ctr,'vpnum']   = df.vpNum[0]
             pRTdata.at[ctr,'version'] = df.version[0]
             pRTdata.at[ctr,'context'] = context
-            pRTdata.at[ctr,'age']     = df.age[0]
-            pRTdata.at[ctr,'sex']     = df.gender[0]
+
+            if 'age' in df:
+                pRTdata.at[ctr,'age']     = df.age[0]
+            else:
+                pRTdata.at[ctr,'age'] = np.nan
+
+            if 'gender' in df:
+                pRTdata.at[ctr,'sex']     = df.gender[0]
+            else:
+                pRTdata.at[ctr,'sex']     = 'na'
             
             # look at training choice data
             pRTdata.at[ctr,'t_s_20v50'] = np.nanmean(rt[trainix & t20v50 & safe_ix])
@@ -1295,9 +1303,7 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     ax7.set_yticks(eq_ytcks)
     ax7.set_xticklabels(['EQ20', 'EQ50', 'EQ80'])
 
-    plt.savefig("Fig 2 - choices.svg", transparent=True)
-
-
+    #plt.savefig("Fig 2 - choices.svg", transparent=True)
 
  
     
@@ -1795,7 +1801,7 @@ def plotWinStay(exp1_gain_winstay,exp1_loss_winstay,exp2_gain_winstay,exp2_loss_
 
 def distRLmodel_MLE(alldata):
      
-    alphavals = np.linspace(.05,1,int(1/.05))
+    alphavals = np.linspace(.1,1,int(1/.1))
     #betas = np.linspace(1,40,20)
     #nparams = 3
     betas = np.array([1]) # this is for debugging
