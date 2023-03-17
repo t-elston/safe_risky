@@ -43,12 +43,12 @@ def load_processData(datadir,context):
 
     ctr = 0
     
-    print('assessing file#:', end=' ')
+
     # load a csv file and assess each one
     
     for i in range(len(fnames)):
                 
-        print(str(i),end=' ')
+        print('\rFile #: ' + str(i) + '/' + str(len(fnames)) + '   ', end='')
         
         df = pd.read_csv(fnames[i],header=[0])
         
@@ -1306,6 +1306,10 @@ def plot_both_experiments_perf(exp1_gain_data, exp1_loss_data,
     #plt.savefig("Fig 2 - choices.svg", transparent=True)
 
  
+# def plot_3_experiments( )
+
+
+
     
 # END of function
 
