@@ -21,7 +21,7 @@ import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import math
 import scipy as sp
-import utils as ut
+import safe_risk_helper_functions as hlp
 
 from glob import glob
 #--------------------------
@@ -40,8 +40,7 @@ def load_process_data(datadir, context):
     """
 
     # get names of each experiment's folder    
-    data_folders = glob(datadir+'*/', recursive = True)
-    exp_folder = data_folders[0]
+    data_folders = sorted(glob(datadir+'*/', recursive = True))
 
     # initialize outputs
     all_data = pd.DataFrame()
@@ -57,7 +56,6 @@ def load_process_data(datadir, context):
         
         # get files names with path
         fnames = [ exp_folder+_ for _ in os.listdir(exp_folder) if _.endswith('.csv')]
-    
     
         # load a csv file and assess each one
         for i in range(len(fnames)):
@@ -776,7 +774,6 @@ def plot_assess_win_stay(winstay_long, winstay_wide, gain_choice, loss_choice):
             
             # fit the general linear model
             plt_mdl = smf.glm('eq_bias ~ ws_diff', data=reg_df).fit()
-            mdl = smf.glm('eq_bias ~ ws_diff*prob', data=reg_df).fit()
 
             # pull out slope and intercept for plotting the regression line
             if ctx == 'Gain':
@@ -791,495 +788,580 @@ def plot_assess_win_stay(winstay_long, winstay_wide, gain_choice, loss_choice):
 
             # store the results of the GLM
             save_name = 'Exp' + str(int(exp)) + '_' + ctx
-            GLM_results[save_name] = mdl.summary()
+            GLM_results[save_name] = plt_mdl.summary()
 
     return GLM_results
 #END of plotting and analyzing win-stay data
 
-# TODO implement risk-sensitive RL as a class, 
-# TODO rewrite trial by trial modelling function
 
-def distRLmodel_MLE(alldata):
-     
+def risk_sensitive_RL(gain_all, loss_all):
+    """Fits a risk-sensitive RL model for each participant in each context
+
+    Args:
+        gain_all (dataframe): trial-by-trial choice data in gain context
+        loss_all (dataframe): trial-by-trial choice data in loss context
+
+    Returns:
+        gain_fits (dataframe): best fitting quantile and other parameters
+        loss_fits (dataframe): same as with gain_fits
+    """
+
+    # initialize output
+    gain_fits = pd.DataFrame()
+    loss_fits = pd.DataFrame()
+
     alphavals = np.linspace(.1,1,int(1/.1))
-    #betas = np.linspace(1,40,20)
-    #nparams = 3
-    betas = np.array([1]) # this is for debugging
-    nparams=2
-    
+    betas = np.linspace(1,10,10)
+    n_params = 3
+
     # get the combinations of alphas and betas
     #1st col = alphaplus, 2nd = alphaminus, 3rd = beta
-    Qparams = np.array(np.meshgrid(alphavals, alphavals,betas)).T.reshape(-1,3)
-    
-    # get a subject's data
-    subjIDs = alldata['vpNum'].unique()
-    
+    Qparams = np.array(np.meshgrid(alphavals, alphavals, betas)).T.reshape(-1,3)
+
+    all_data = pd.concat([gain_all, loss_all])
+
+    ctr = 0
+
+    # loop over experiments
+    for exp in np.unique(all_data['exp_num']):
+        # loop over contexts
+        for ctx in np.unique(all_data['blkType']):
+
+            print('\n')
+            print(ctx + ' Experiment #: ' + str(int(exp)) + 
+                 ' of ' + str(len(np.unique(all_data['exp_num']))))
+            
+            exp_subjs = np.unique(all_data['vpNum'].loc[(all_data['exp_num'] == exp) & 
+                                    (all_data['blkType'] == ctx) ])
+            n_subjs = len(exp_subjs)
+            
+            # loop over participants
+            for p_ix, p in enumerate(exp_subjs):
+
+                print('\rSubject #: ' + str(p_ix+1) + ' of ' + str(n_subjs) + '   ', end='')
+
+                # extract some pieces so we can run using numpy
+                p_data = all_data.loc[(all_data['exp_num'] == exp) & 
+                                      (all_data['blkType'] == ctx) &
+                                      (all_data['vpNum'] == p)]
+                
+                t_stim = np.empty((len(p_data), 2))
+                participant_choice = np.empty((len(p_data), 1)).astype(int)
+                for ix, i in enumerate(np.unique(p_data['probLeft'])):
+                    t_stim[(p_data['probLeft'] == i) & (p_data['imgLeftType'] == 'Safe'), 0] = ix
+                    t_stim[(p_data['probLeft'] == i) & (p_data['imgLeftType'] == 'Risky'), 0] = ix+3
+                    t_stim[(p_data['probRight'] == i) & (p_data['imgRightType'] == 'Safe'), 1] = ix
+                    t_stim[(p_data['probRight'] == i) & (p_data['imgRightType'] == 'Risky'), 1] = ix+3
+                    participant_choice[(p_data['chosen_prob'] == i) & (p_data['chosen_type'] == 'Safe')] = ix
+                    participant_choice[(p_data['chosen_prob'] == i) & (p_data['chosen_type'] == 'Risky')] = ix+3
+
+                n_stim = len(np.unique(t_stim))
+                t_stim = t_stim.astype(int)
+                t_outcomes = p_data['rewardPoints'].values.astype(int)
+                t_chosen_type = p_data['chosen_type'].to_numpy()
+
+                eq20_ix = ((p_data['probLeft'] == .2) & (p_data['probRight'] == .2)).to_numpy()
+                eq50_ix = ((p_data['probLeft'] == .5) & (p_data['probRight'] == .5)).to_numpy()
+                eq80_ix = ((p_data['probLeft'] == .8) & (p_data['probRight'] == .8)).to_numpy()
+                all_eq = eq20_ix | eq50_ix | eq80_ix
+                picked_risky = (t_chosen_type == 'Risky').astype(int)
+
+                # initialize intermediate output for the model runs for this participant / context
+                sum_log_likelihood = np.zeros((len(Qparams), 1))
+                eq_bias_LL = np.zeros((len(Qparams), 1))
+                accuracy = np.zeros((len(Qparams), 1))
+                eq_bias = np.zeros((len(Qparams), 3))
+
+                # now loop over Qparams
+                for q in range(len(Qparams)):
+
+                    # initialize the output of this agent
+                    t_log_likelihood = np.empty((len(p_data), 1))
+                    t_agent_choices = np.zeros((len(p_data), 1)).astype(int)
+
+                    # instantiate the agent with this param set
+                    agent = RS_agent(n_stim, Qparams[q,0], Qparams[q,1], Qparams[q,2])
+
+                    # step through the trials
+                    for t in range(len(p_data)):
+
+                        # what's the probability the agent picks the left option?
+                        p_choose_left, t_agent_choices[t] = agent.softmax(t_stim[t,0], t_stim[t,1])
+
+                        # store the log likelihood that the agent picked the same option
+                        # as the human participant
+                        if (p_choose_left > .5) & (t_stim[t,0] == participant_choice[t]):
+                            t_log_likelihood[t] = np.log(p_choose_left)
+                        else:
+                            t_log_likelihood[t] = np.log(1 - p_choose_left)
+
+                        # update the model
+                        agent.update(participant_choice[t], t_outcomes[t], t_chosen_type[t])
+                
+                    # assess some characteristics of this model run
+                    sum_log_likelihood[q] = np.sum(t_log_likelihood)
+                    eq_bias_LL[q] = np.sum(t_log_likelihood[eq20_ix | eq50_ix | eq80_ix])
+                    accuracy[q] = np.mean(t_agent_choices == participant_choice)
+                    eq_bias[q,0] = np.mean(t_agent_choices[eq20_ix] == 3)
+                    eq_bias[q,1] = np.mean(t_agent_choices[eq50_ix] == 4)
+                    eq_bias[q,2] = np.mean(t_agent_choices[eq80_ix] == 5)
+
+                # save the best fitting parameters for this participant
+                best_params_ix = np.argmax(sum_log_likelihood)
+                quantile = Qparams[best_params_ix, 0] / np.sum(Qparams[best_params_ix, 0:2])
+                beta = Qparams[best_params_ix, 2] 
+
+                if ctx == 'Gain':
+                    gain_fits.at[ctr, 'exp'] = exp
+                    gain_fits.at[ctr, 'context'] = ctx
+                    gain_fits.at[ctr, 'subj'] = p
+                    gain_fits.at[ctr, 'aic'] = (-2*sum_log_likelihood[best_params_ix]) + (2*n_params)
+                    gain_fits.at[ctr, 'quantile'] = quantile
+                    gain_fits.at[ctr, 'beta'] = beta
+                    gain_fits.at[ctr, 'accuracy'] = accuracy[best_params_ix]
+                    gain_fits.at[ctr, 'total_p_risk_pref'] = np.mean(picked_risky[all_eq])
+                    gain_fits.at[ctr, 'agent_eq20'] = eq_bias[best_params_ix,0]
+                    gain_fits.at[ctr, 'agent_eq50'] = eq_bias[best_params_ix,1]
+                    gain_fits.at[ctr, 'agent_eq80'] = eq_bias[best_params_ix,2]
+                    gain_fits.at[ctr, 'subj_eq20'] = np.mean(picked_risky[eq20_ix])
+                    gain_fits.at[ctr, 'subj_eq50'] = np.mean(picked_risky[eq50_ix])
+                    gain_fits.at[ctr, 'subj_eq80'] = np.mean(picked_risky[eq80_ix])
+
+                if ctx == 'Loss':
+                    loss_fits.at[ctr, 'exp'] = exp
+                    loss_fits.at[ctr, 'context'] = ctx
+                    loss_fits.at[ctr, 'subj'] = p
+                    loss_fits.at[ctr, 'aic'] = (-2*sum_log_likelihood[best_params_ix]) + (2*n_params)
+                    loss_fits.at[ctr, 'quantile'] = quantile
+                    loss_fits.at[ctr, 'beta'] = beta
+                    loss_fits.at[ctr, 'accuracy'] = accuracy[best_params_ix]
+                    loss_fits.at[ctr, 'total_p_risk_pref'] = np.mean(picked_risky[all_eq])
+                    loss_fits.at[ctr, 'agent_eq20'] = eq_bias[best_params_ix,0]
+                    loss_fits.at[ctr, 'agent_eq50'] = eq_bias[best_params_ix,1]
+                    loss_fits.at[ctr, 'agent_eq80'] = eq_bias[best_params_ix,2]
+                    loss_fits.at[ctr, 'subj_eq20'] = np.mean(picked_risky[eq20_ix])
+                    loss_fits.at[ctr, 'subj_eq50'] = np.mean(picked_risky[eq50_ix])
+                    loss_fits.at[ctr, 'subj_eq80'] = np.mean(picked_risky[eq80_ix])
+
+                ctr = ctr+1
+    return gain_fits, loss_fits
+
+
+def differential_risk_sensitive_RL(gain_all, loss_all):
+    """Fits a differential risk-sensitive RL model for each participant in each context
+
+    Args:
+        gain_all (dataframe): trial-by-trial choice data in gain context
+        loss_all (dataframe): trial-by-trial choice data in loss context
+
+    Returns:
+        gain_fits (dataframe): best fitting quantile and other parameters
+        loss_fits (dataframe): same as with gain_fits
+    """
+
     # initialize output
-    bestparams = np.zeros(shape = (len(subjIDs),int(Qparams.shape[1])+2))
-    bestAccOpt = np.zeros(shape = (len(subjIDs),2))
-    best_Qtbl  = np.zeros(shape = (len(subjIDs),6))
-    
-    # iterate through each subject's data
-    for s in range(len(subjIDs)):
- 
-        # pull out this subject's data        
-        sdata = alldata.loc[alldata.vpNum == subjIDs[s],:]
+    gain_fits = pd.DataFrame()
+    loss_fits = pd.DataFrame()
 
-        # accuracies for each parameter set
-        paramAccs = np.zeros(shape = len(Qparams))
-        paramOpt  = np.zeros(shape = len(Qparams))
-        paramQtbl = np.zeros(shape = (len(Qparams),6))
-        
-        # log likelihoods for each param set
-        paramLL = np.zeros(shape = len(Qparams))
-        
-        # define trial stim
-        stim = np.column_stack([sdata.imageNumberLeft , sdata.imageNumberRight]).astype(int)
- 
-        # what direction did the person pick each time?
-        humanchoiceside = (sdata.responseSide == 'right').astype(int)
-        
-        # figure out which image was chosen on each trial by the person
-        humanchoice = np.diag(stim[:,humanchoiceside].astype(int))
-           
-        optimalside = (sdata.highProbSide == 'right').astype(int)
-        
-        if sdata.blkType[0] == 'Loss':
-            optimalside = (optimalside == 0).astype(int)
+    alphavals = np.linspace(.1,1,int(1/.1))
+    #betas = np.linspace(1,10,10)
+    n_params = 4
+    betas = np.array([1]) # this is for debugging
 
+    # get the combinations of alphas and betas
+    #1st col = safe_a_plus, 2nd = safe_a_minus, 3rd/4th = safe/risky_a_plus, 5th = beta
+    Qparams = np.array(np.meshgrid(alphavals, alphavals, 
+                                   alphavals, alphavals, betas)).T.reshape(-1,5)
 
-        # now iterate over each combination of alphas and beta
-        for a in range(len(Qparams)):
-            
-            alphaplus  = Qparams[a,0]
-            alphaminus = Qparams[a,1]
-            beta       = Qparams[a,2]
-            
-            # initialilze a set of log likelihoods for these trials
-            this_param_LLs = np.zeros(len(sdata))
+    all_data = pd.concat([gain_all, loss_all])
 
-            print('\rSubject#: '+str(s) + ', Param#: '+ str(a)+' / '+str(len(Qparams))+'   ', end='')
-                  
-            # initialize a Qtable
-            Qtbl = np.zeros(6) 
-            xx=[] 
-            
-            # initialize an array for the learner's choices
-            Qchoices = np.zeros(shape = len(humanchoiceside))
-            
-            Qoptimalchoice = np.zeros(shape = len(humanchoiceside))
-            
-            # loop through each trial 
-            for t in range(len(sdata)):
-                 
-                # get some basic info about the trial            
-                tOutcome = sdata.rewardPoints[t]
+    ctr = 0
 
-                # get likelihood that the Qlearner would pick the left option                            
-                softmax = 1/(1+np.exp(beta*(Qtbl[stim[t,1]]-Qtbl[stim[t,0]])))
+    # loop over experiments
+    for exp in np.unique(all_data['exp_num']):
+        # loop over contexts
+        for ctx in np.unique(all_data['blkType']):
+
+            print('\n')
+            print(ctx + ' Experiment #: ' + str(int(exp)) + 
+                 ' of ' + str(len(np.unique(all_data['exp_num']))))
+            
+            exp_subjs = np.unique(all_data['vpNum'].loc[(all_data['exp_num'] == exp) & 
+                                    (all_data['blkType'] == ctx) ])
+            n_subjs = len(exp_subjs)
+            
+            # loop over participants
+            for p_ix, p in enumerate(exp_subjs):
+
+                print('\rSubject #: ' + str(p_ix+1) + ' of ' + str(n_subjs) + '   ', end='')
+
+                # extract some pieces so we can run using numpy
+                p_data = all_data.loc[(all_data['exp_num'] == exp) & 
+                                      (all_data['blkType'] == ctx) &
+                                      (all_data['vpNum'] == p)]
                 
-                if softmax == 1:
-                    softmax = 0.99999999
-                    
-                if softmax ==0:
-                    softmax = 0.00000001
+                t_stim = np.empty((len(p_data), 2))
+                participant_choice = np.empty((len(p_data), 1)).astype(int)
+                for ix, i in enumerate(np.unique(p_data['probLeft'])):
+                    t_stim[(p_data['probLeft'] == i) & (p_data['imgLeftType'] == 'Safe'), 0] = ix
+                    t_stim[(p_data['probLeft'] == i) & (p_data['imgLeftType'] == 'Risky'), 0] = ix+3
+                    t_stim[(p_data['probRight'] == i) & (p_data['imgRightType'] == 'Safe'), 1] = ix
+                    t_stim[(p_data['probRight'] == i) & (p_data['imgRightType'] == 'Risky'), 1] = ix+3
+                    participant_choice[(p_data['chosen_prob'] == i) & (p_data['chosen_type'] == 'Safe')] = ix
+                    participant_choice[(p_data['chosen_prob'] == i) & (p_data['chosen_type'] == 'Risky')] = ix+3
+
+                n_stim = len(np.unique(t_stim))
+                t_stim = t_stim.astype(int)
+                t_outcomes = p_data['rewardPoints'].values.astype(int)
+                t_chosen_type = p_data['chosen_type'].to_numpy()
+
+                eq20_ix = ((p_data['probLeft'] == .2) & (p_data['probRight'] == .2)).to_numpy()
+                eq50_ix = ((p_data['probLeft'] == .5) & (p_data['probRight'] == .5)).to_numpy()
+                eq80_ix = ((p_data['probLeft'] == .8) & (p_data['probRight'] == .8)).to_numpy()
+                all_eq = eq20_ix | eq50_ix | eq80_ix
+                picked_risky = (t_chosen_type == 'Risky').astype(int)
+
+                # initialize intermediate output for the model runs for this participant / context
+                sum_log_likelihood = np.zeros((len(Qparams), 1))
+                eq_bias_LL = np.zeros((len(Qparams), 1))
+                accuracy = np.zeros((len(Qparams), 1))
+                eq_bias = np.zeros((len(Qparams), 3))
+
+                # now loop over Qparams
+                for q in range(len(Qparams)):
+
+                    # initialize the output of this agent
+                    t_log_likelihood = np.empty((len(p_data), 1))
+                    t_agent_choices = np.zeros((len(p_data), 1)).astype(int)
+
+                    # instantiate the agent with this param set
+                    agent = differential_RS_agent(n_stim,
+                                                  Qparams[q,0], Qparams[q,1], 
+                                                  Qparams[q,2], Qparams[q,3], Qparams[q,4])
+
+                    # step through the trials
+                    for t in range(len(p_data)):
+
+                        # what's the probability the agent picks the left option?
+                        p_choose_left, t_agent_choices[t] = agent.softmax(t_stim[t,0], t_stim[t,1])
+
+                        # store the log likelihood that the agent picked the same option
+                        # as the human participant
+                        if (p_choose_left > .5) & (t_stim[t,0] == participant_choice[t]):
+                            t_log_likelihood[t] = np.log(p_choose_left)
+                        else:
+                            t_log_likelihood[t] = np.log(1 - p_choose_left)
+
+                        # update the model
+                        agent.update(participant_choice[t], t_outcomes[t], t_chosen_type[t])
                 
-                # get likelihood that Qlearner picks same as human
-                if humanchoiceside[t] == 0: # if they went left
-                    fit_likelihood = softmax
-                else:
-                    fit_likelihood = 1-softmax
-                    
-                this_param_LLs[t] = np.log(fit_likelihood)
-                
-                # does the TD learner pick left?
-                wentleft = softmax > .5
-                
-                if wentleft:
-                    side = 0
-                else:
-                    side = 1 # he went right
-               
-                
-                # which stim is it?
-                choice = stim[t,side] 
-                
-                # keep track of what the learner picked
-                Qchoices[t] = choice
-                
-                # was this choice optimal?
-                Qoptimalchoice[t] = (optimalside[t] == side).astype(int)   
+                    # assess some characteristics of this model run
+                    sum_log_likelihood[q] = np.sum(t_log_likelihood)
+                    eq_bias_LL[q] = np.sum(t_log_likelihood[eq20_ix | eq50_ix | eq80_ix])
+                    accuracy[q] = np.mean(t_agent_choices == participant_choice)
+                    eq_bias[q,0] = np.mean(t_agent_choices[eq20_ix] == 3)
+                    eq_bias[q,1] = np.mean(t_agent_choices[eq50_ix] == 4)
+                    eq_bias[q,2] = np.mean(t_agent_choices[eq80_ix] == 5)
 
-                # what did the person pick?                                    
-      
-                # figure out which alpha value to use
-                if (tOutcome - Qtbl[choice]) > 0:
-                    tAlpha = alphaplus
-                else:
-                    tAlpha = alphaminus
-                    
-                # do the TD update based on what the persosn picked
-                Qtbl[humanchoice[t]] = Qtbl[humanchoice[t]] + (tAlpha*(tOutcome -Qtbl[humanchoice[t]]))
-            #END of looping over trials
-        
-            # what was the MLE for this param set?
-            paramLL[a] = this_param_LLs.sum()
-            
-            # how accurate was this iteration in predicting a person's choices?
-            paramAccs[a] = (Qchoices == humanchoice).astype(int).mean() 
-            
-            # how optimal did the learner perform?
-            paramOpt[a] = Qoptimalchoice.mean() 
-            
-            paramQtbl[a,:] = Qtbl
-            
-            xx=[]             
-        # END of looping over parameters 
-        
-        # assess which parameter set was best 
-        bestix = np.nanargmax(paramLL)
-        
-        bestparams[s,0:int(Qparams.shape[1])]=Qparams[bestix,:]
-        bestparams[s,int(Qparams.shape[1])]  =Qparams[bestix,0] / (Qparams[bestix,0:2].sum())
-        
-        # calculate the BIC score
-        bic = np.log(len(sdata))*nparams -2*paramLL[bestix]
-        
-        # save bic score
-        bestparams[s,int(Qparams.shape[1])+1] = bic
-        
-        # store accuracies
-        bestAccOpt[s,0]  = paramAccs[bestix]
-        bestAccOpt[s,1]  = paramOpt[bestix]
-        
-        # store best Qtbl
-        best_Qtbl[s,:] = paramQtbl[bestix,:]
-        
-        
-        
-        """
-        paramgrid = paramLL.reshape(10,10)
-        plt.imshow(paramgrid)
-        plt.colorbar()
-        
-        optgrid = paramOpt.reshape(10,10)
-        plt.imshow(optgrid)
-        plt.colorbar()
-        """
-
-    # END of looping through subjects  
-
-    return bestparams, bestAccOpt, best_Qtbl           
-# END of distRLmodel
+                # save the best fitting parameters for this participant
+                best_params_ix = np.argmax(sum_log_likelihood)
+                safe_quantile = Qparams[best_params_ix, 0] / np.sum(Qparams[best_params_ix, 0:2])
+                risky_quantile = Qparams[best_params_ix, 2] / np.sum(Qparams[best_params_ix, 2:4])
 
 
+                if ctx == 'Gain':
+                    gain_fits.at[ctr, 'exp'] = exp
+                    gain_fits.at[ctr, 'context'] = ctx
+                    gain_fits.at[ctr, 'subj'] = p
+                    gain_fits.at[ctr, 'aic'] = (-2*sum_log_likelihood[best_params_ix]) + (2*n_params)
+                    gain_fits.at[ctr, 'safe_quantile'] = safe_quantile
+                    gain_fits.at[ctr, 'risky_quantile'] = risky_quantile
+                    gain_fits.at[ctr, 'accuracy'] = accuracy[best_params_ix]
+                    gain_fits.at[ctr, 'total_p_risk_pref'] = np.mean(picked_risky[all_eq])
+                    gain_fits.at[ctr, 'agent_eq20'] = eq_bias[best_params_ix,0]
+                    gain_fits.at[ctr, 'agent_eq50'] = eq_bias[best_params_ix,1]
+                    gain_fits.at[ctr, 'agent_eq80'] = eq_bias[best_params_ix,2]
+                    gain_fits.at[ctr, 'subj_eq20'] = np.mean(picked_risky[eq20_ix])
+                    gain_fits.at[ctr, 'subj_eq50'] = np.mean(picked_risky[eq50_ix])
+                    gain_fits.at[ctr, 'subj_eq80'] = np.mean(picked_risky[eq80_ix])
 
-def relate_distRL_to_EQbias(gain_bestparams, loss_bestparams,
-                           gain_choice, loss_choice,
-                           gain_bestAccOpt,loss_bestAccOpt):   
+                if ctx == 'Loss':
+                    loss_fits.at[ctr, 'exp'] = exp
+                    loss_fits.at[ctr, 'context'] = ctx
+                    loss_fits.at[ctr, 'subj'] = p
+                    loss_fits.at[ctr, 'aic'] = (-2*sum_log_likelihood[best_params_ix]) + (2*n_params)
+                    loss_fits.at[ctr, 'safe_quantile'] = safe_quantile
+                    loss_fits.at[ctr, 'risky_quantile'] = risky_quantile
+                    loss_fits.at[ctr, 'accuracy'] = accuracy[best_params_ix]
+                    loss_fits.at[ctr, 'total_p_risk_pref'] = np.mean(picked_risky[all_eq])
+                    loss_fits.at[ctr, 'agent_eq20'] = eq_bias[best_params_ix,0]
+                    loss_fits.at[ctr, 'agent_eq50'] = eq_bias[best_params_ix,1]
+                    loss_fits.at[ctr, 'agent_eq80'] = eq_bias[best_params_ix,2]
+                    loss_fits.at[ctr, 'subj_eq20'] = np.mean(picked_risky[eq20_ix])
+                    loss_fits.at[ctr, 'subj_eq50'] = np.mean(picked_risky[eq50_ix])
+                    loss_fits.at[ctr, 'subj_eq80'] = np.mean(picked_risky[eq80_ix])
+
+                ctr = ctr+1
+    return gain_fits, loss_fits
 
 
-    # define colormap for plotting 
+def plot_RSRL_results(gain_fits, loss_fits):
+    xx=[]
+
+    # create figure and define colormap
     cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+    cmap2 = plt.cm.tab20(np.linspace(0, 1, 20))
+    fig = plt.figure(figsize=(14, 8), dpi=300)
+    gs = fig.add_gridspec(3, 16)
+
+    experiment_ids = np.unique(gain_fits['exp']).astype(int)
+
+    for exp_ix, exp in enumerate(experiment_ids):
+
+        # create subplots for this experiment
+        bias_ax = fig.add_subplot(gs[exp_ix, 0: 3])
+        accuracy_ax = fig.add_subplot(gs[exp_ix, 4: 6])
+        qreg_ax = fig.add_subplot(gs[exp_ix, 7: 10])
+        probmatch_ax = fig.add_subplot(gs[exp_ix, 11: 14])
+
+        # pull this experiment's data
+        e_gain = gain_fits.loc[gain_fits['exp'] == exp]
+        e_loss = loss_fits.loc[loss_fits['exp'] == exp]
+
+        # pull individual human biases for each experiment
+        gain_bias = np.array([e_gain['subj_eq20'],
+                                e_gain['subj_eq50'],
+                                e_gain['subj_eq80']])
+        loss_bias = np.array([e_loss['subj_eq20'],
+                                e_loss['subj_eq50'],
+                                e_loss['subj_eq80']])
         
-    gain_EQ_bias = np.nanmean(gain_choice.iloc[:,23:26], axis =1)
-    
-    loss_EQ_bias = np.nanmean(loss_choice.iloc[:,23:26], axis =1)
-  
-    
-    # fit a linear mixed effect model
-    lmedata = pd.DataFrame()
-    lmedata['EQbias'] = np.concatenate([gain_EQ_bias,loss_EQ_bias])
-    lmedata['context'] = np.concatenate([np.ones(len(gain_EQ_bias)),np.ones(len(gain_EQ_bias))*-1])
-    lmedata['RLparam'] = np.concatenate([gain_bestparams[:,3],loss_bestparams[:,3]])
-    lmedata['subject'] = np.concatenate([np.arange(len(gain_EQ_bias)),np.arange(len(gain_EQ_bias))])
-    
-    # fit the model
-    RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias', lmedata, groups=lmedata['subject']).fit()
-    
-    # extract intercept and beta for distRL quantile
-    params = RLxbias_mdl.params
-    intercept = params['Intercept']
-    slope     = params['EQbias']
-    
-    
-    # make figure and get plot    
-    fig = plt.figure(figsize=(8, 2), dpi=300)
-
-    gs = fig.add_gridspec(1,12)
-    ax0 = fig.add_subplot(gs[0: 2])
-    ax1 = fig.add_subplot(gs[3: 5])
-    ax2 = fig.add_subplot(gs[6: 9])
- 
-    
-    
-    
-    # plot model accuracy
-    gain_acc_mean = gain_bestAccOpt[:,0].mean()
-    gain_acc_sem = gain_bestAccOpt[:,0].std()/np.sqrt(len(gain_bestAccOpt[:,0]))
-    
-    loss_acc_mean = loss_bestAccOpt[:,0].mean()
-    loss_acc_sem = loss_bestAccOpt[:,0].std()/np.sqrt(len(loss_bestAccOpt[:,0]))
-
-    
-    ax0.bar(1, gain_acc_mean, yerr=gain_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[1,:])
-    
-    ax0.bar(2, loss_acc_mean, yerr=loss_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[5,:])
-
-    ax0.plot([0,3],[.5,.5],color = 'tab:gray', linestyle = '--')
-    ax0.set_ylabel('Model Accuracy')
-    ax0.set_xticks([1,2])
-    ax0.set_ylim([0,1])
-    ax0.set_yticks([0, .5, 1])
-    ax0.set_xlim([.5,2.5])
-    ax0.set_xticklabels(['Gain','Loss'])
-    
-    # plot best quantiles
-    gain_q_mean = gain_bestparams[:,3].mean()
-    gain_q_sem = gain_bestparams[:,3].std()/np.sqrt(len(gain_bestparams[:,3]))
-    
-    loss_q_mean = loss_bestparams[:,3].mean()
-    loss_q_sem = loss_bestparams[:,3].std()/np.sqrt(len(loss_bestparams[:,3]))
-
-    
-    ax1.bar(1, gain_q_mean, yerr=gain_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[1,:])
-    
-    ax1.bar(2, loss_q_mean, yerr=loss_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[5,:])
-
-
-    ax1.set_xticks([1,2])
-    ax1.set_ylim([0,1])
-    ax1.set_yticks([0, .5, 1])
-    ax1.set_xlim([.5,2.5])
-    ax1.set_xticklabels(['Gain','Loss'])
-    ax1.set_ylabel('distRL Quantile')
-    
-    # predict model quantile from bias
-    ax2.scatter(gain_EQ_bias,gain_bestparams[:,3],color=cmap[1,:], s =20)
-    ax2.scatter(loss_EQ_bias,loss_bestparams[:,3],color=cmap[5,:], s =20)
-    
-    # plot line of best fit
-    ax2.plot(np.array([0,1]),np.array([0,1])*slope + intercept, 
-               color = 'black', linewidth=2)
-    
-    
-    ax2.set_xlabel('EQ bias')
-    ax2.set_ylabel('distRL Quantile')
-    ax2.set_xticks(ticks = np.array([0, .5, 1]))
-    ax2.set_yticks(ticks = np.array([0, .5, 1]))
-    ax2.set_xlim([0,1])
-    ax2.set_ylim([0,1])
-  
-    xx=[] 
-# END of relate_distRL_to_EQbias
-
-
-def both_exp_distRLxEQbias(exp1_gain_bestparams, exp1_loss_bestparams,
-                           exp1_gain_choice, exp1_loss_choice,
-                           exp1_gain_bestAccOpt,exp1_loss_bestAccOpt,
-                           exp2_gain_bestparams, exp2_loss_bestparams,
-                           exp2_gain_choice, exp2_loss_choice,
-                           exp2_gain_bestAccOpt,exp2_loss_bestAccOpt):   
-
-
-    # define colormap for plotting 
-    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+        # pull the biases of the best-fitting agents for each human/experiment
+        a_gain_bias = np.array([e_gain['agent_eq20'],
+                                e_gain['agent_eq50'],
+                                e_gain['agent_eq80']])
+        a_loss_bias = np.array([e_loss['agent_eq20'],
+                                e_loss['agent_eq50'],
+                                e_loss['agent_eq80']])
         
-    exp1_gain_EQ_bias = np.nanmean(exp1_gain_choice.iloc[:,23:26], axis =1)
-    exp1_loss_EQ_bias = np.nanmean(exp1_loss_choice.iloc[:,23:26], axis =1)
+        bias_ax.plot(np.array([.2, .5, .8]), gain_bias, color=cmap[4,:], linewidth=1)
+        bias_ax.plot(np.array([.2, .5, .8]), loss_bias, color=cmap[0,:], linewidth=1)
 
-    exp2_gain_EQ_bias = np.nanmean(exp2_gain_choice.iloc[:,23:26], axis =1)
-    exp2_loss_EQ_bias = np.nanmean(exp2_loss_choice.iloc[:,23:26], axis =1)
+        bias_ax.plot(np.array([.2, .5, .8]), np.mean(gain_bias, axis=1),
+                color=cmap[5,:], marker='s', linewidth=3, markersize = 8, label = 'Gain')
+        
+        bias_ax.plot(np.array([.2, .5, .8]), np.mean(loss_bias, axis=1),
+                color=cmap[1,:], marker='s', linewidth=3, markersize = 8, label = 'Loss')
+        bias_ax.set_xticks([.2,.5, .8])
+        bias_ax.set_yticks([0, .5, 1])
+        bias_ax.set_xlim([.15, .85])
+        bias_ax.set_ylabel('Experiment ' + str(exp) + '\n p(Choose Risky)')
 
-    n_subs1 = len(exp1_gain_EQ_bias)
-    n_subs2 = len(exp2_gain_EQ_bias)
+        # plot mean model accuracy
+        # make some jitered x vals
+        gain_x = np.random.uniform(0, .4, len(e_gain))
+        loss_x = np.random.uniform(.6, 1, len(e_loss))
 
-    
-    # fit linear mixed effects models
-    # EXPERIMENT 1
-    exp1_lmedata = pd.DataFrame()
-    exp1_lmedata['EQbias'] = np.concatenate([exp1_gain_EQ_bias,exp1_loss_EQ_bias])
-    exp1_lmedata['context'] = np.concatenate([np.ones(shape=(n_subs1,)),np.ones(shape=(n_subs1,))*-1])
-    exp1_lmedata['RLparam'] = np.concatenate([exp1_gain_bestparams[:,3],exp1_loss_bestparams[:,3]])
-    exp1_lmedata['subject'] = np.concatenate([np.arange(n_subs1),np.arange(n_subs1)])
-    
-    # fit the model
-    exp1_RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias*context', exp1_lmedata, groups=exp1_lmedata['subject']).fit()
-    
-    # extract intercept and beta for distRL quantile
-    exp1_params = exp1_RLxbias_mdl.params
-    exp1_intercept = exp1_params['Intercept']
-    exp1_slope     = exp1_params['EQbias']
+        accuracy_ax.scatter(gain_x, e_gain['accuracy'], marker='s', color = cmap[4,:],
+                            s=10)
+        accuracy_ax.scatter(loss_x, e_loss['accuracy'], marker='s', color = cmap[0,:],
+                            s=10)
+        accuracy_ax.scatter(.2, e_gain['accuracy'].mean(), marker='s', color = cmap[5,:],
+                             s=100, edgecolors='black')
+        accuracy_ax.scatter(.8, e_loss['accuracy'].mean(), marker='s', color = cmap[1,:],
+                            s=100, edgecolors='black')
+        accuracy_ax.set_xticks([.2,.8])
+        accuracy_ax.set_yticks([0, .5, 1])
+        accuracy_ax.set_ylim([0,1])
+        accuracy_ax.set_xticklabels(['Gain', 'Loss'])
+        accuracy_ax.set_ylabel('p(Agent = Human Choice)')
 
-    # EXPERIMENT 2
-    exp2_lmedata = pd.DataFrame()
-    exp2_lmedata['EQbias'] = np.concatenate([exp2_gain_EQ_bias,exp2_loss_EQ_bias])
-    exp2_lmedata['context'] = np.concatenate([np.ones(shape=(n_subs2,)),np.ones(shape=(n_subs2,))*-1])
-    exp2_lmedata['RLparam'] = np.concatenate([exp2_gain_bestparams[:,3],exp2_loss_bestparams[:,3]])
-    exp2_lmedata['subject'] = np.concatenate([np.arange(n_subs2),np.arange(n_subs2)])
-    
-    # fit the model
-    exp2_RLxbias_mdl = smf.mixedlm('RLparam ~ EQbias*context', exp2_lmedata, groups=exp2_lmedata['subject']).fit()
-    
-    # extract intercept and beta for distRL quantile
-    exp2_params = exp2_RLxbias_mdl.params
-    exp2_intercept = exp2_params['Intercept']
-    exp2_slope     = exp2_params['EQbias']
+        # plot relationship between quantile and risk-attitude
+        qreg_ax.scatter(e_gain['quantile'], e_gain['total_p_risk_pref'], marker ='s',
+                        s=10, color=cmap[4,:])
+        qreg_ax.scatter(e_loss['quantile'], e_loss['total_p_risk_pref'], marker ='s',
+                        s=10, color=cmap[0,:])
+        qreg_ax.set_xlim([0,1])
+        qreg_ax.set_ylim([0,1])
 
-    #-------
-    # calculate distRL model accuracy
-    #-------
-    # EXPERIMENT 1
-    exp1_gain_acc_mean = exp1_gain_bestAccOpt[:,0].mean()
-    exp1_gain_acc_sem = exp1_gain_bestAccOpt[:,0].std()/np.sqrt(len(exp1_gain_bestAccOpt[:,0]))
-    
-    exp1_loss_acc_mean = exp1_loss_bestAccOpt[:,0].mean()
-    exp1_loss_acc_sem = exp1_loss_bestAccOpt[:,0].std()/np.sqrt(len(exp1_loss_bestAccOpt[:,0]))
+        # do regression and plot regression line
+        reg_df = pd.DataFrame()
+        reg_df['quantile'] = np.concatenate((e_gain['quantile'], e_loss['quantile']))
+        reg_df['risk_bias'] = np.concatenate((e_gain['total_p_risk_pref'], e_loss['total_p_risk_pref']))
+        reg_df['context'] = np.concatenate((np.ones((len(e_gain),1)),
+                            np.ones((len(e_gain),1))*-1))
+        
+        # fit the GLM
+        q_mdl = smf.glm('risk_bias ~ quantile*context', data=reg_df).fit()
+        q_xlim = np.array([0, 1])
+        qreg_ax.plot(q_xlim, (q_xlim*q_mdl.params[1]) + q_mdl.params[0], color = 'black', linewidth = 2) 
+        qreg_ax.set_xticks([0, .5, 1])
+        qreg_ax.set_yticks([0, .5, 1])
+        qreg_ax.set_ylabel('p(Choose Risky in =SvsR)')
 
-    # EXPERIMENT 2
-    exp2_gain_acc_mean = exp2_gain_bestAccOpt[:,0].mean()
-    exp2_gain_acc_sem = exp2_gain_bestAccOpt[:,0].std()/np.sqrt(len(exp2_gain_bestAccOpt[:,0]))
-    
-    exp2_loss_acc_mean = exp2_loss_bestAccOpt[:,0].mean()
-    exp2_loss_acc_sem = exp2_loss_bestAccOpt[:,0].std()/np.sqrt(len(exp2_loss_bestAccOpt[:,0]))
+        # now plot how the model's choices predict the human choices at each probability
+        probmatch_ax.scatter(gain_bias[0,:], a_gain_bias[0,:], marker='o', s=10, color=cmap2[4,:])
+        probmatch_ax.scatter(gain_bias[1,:], a_gain_bias[1,:], marker='^', s=10, color=cmap2[2,:])
+        probmatch_ax.scatter(gain_bias[2,:], a_gain_bias[2,:], marker='s', s=10, color=cmap2[8,:])
+        probmatch_ax.scatter(loss_bias[0,:], a_loss_bias[0,:], marker='o', s=10, color=cmap2[5,:])
+        probmatch_ax.scatter(loss_bias[1,:], a_loss_bias[1,:], marker='^', s=10, color=cmap2[3,:])
+        probmatch_ax.scatter(loss_bias[2,:], a_loss_bias[2,:], marker='s', s=10, color=cmap2[9,:])
 
-    #-----
-    # calculate best model quantiles 
-    #-----
-    # EXPERIMENT 1
-    exp1_gain_q_mean = exp1_gain_bestparams[:,3].mean()
-    exp1_gain_q_sem = exp1_gain_bestparams[:,3].std()/np.sqrt(len(exp1_gain_bestparams[:,3]))
+        # now get/plot the regression line
+        p_match_df = pd.DataFrame()
+        p_match_df['human_choice'] = np.concatenate((gain_bias[0,:], gain_bias[1,:], gain_bias[2,:],
+                                                     loss_bias[0,:], loss_bias[1,:], loss_bias[2,:]))
+        p_match_df['agent_choice'] = np.concatenate((a_gain_bias[0,:], a_gain_bias[1,:], a_gain_bias[2,:],
+                                                     a_loss_bias[0,:], a_loss_bias[1,:], a_loss_bias[2,:]))
+        p_match_df['context'] = np.concatenate((np.ones((len(e_gain),1)), 
+                                                np.ones((len(e_gain),1)), 
+                                                np.ones((len(e_gain),1)), 
+                                                np.ones((len(e_gain),1))*-1, 
+                                                np.ones((len(e_gain),1))*-1, 
+                                                np.ones((len(e_gain),1))*-1))
+        
+        p_match_df['prob'] = np.concatenate((np.ones((len(e_gain),1))*.2, 
+                                             np.ones((len(e_gain),1))*.5, 
+                                             np.ones((len(e_gain),1))*.8, 
+                                             np.ones((len(e_gain),1))*.2, 
+                                             np.ones((len(e_gain),1))*.5, 
+                                             np.ones((len(e_gain),1))*.8))
     
-    exp1_loss_q_mean = exp1_loss_bestparams[:,3].mean()
-    exp1_loss_q_sem = exp1_loss_bestparams[:,3].std()/np.sqrt(len(exp1_loss_bestparams[:,3]))
+        match_mdl = smf.glm('human_choice ~ agent_choice*context*prob', data=p_match_df).fit()
+        probmatch_ax.plot(q_xlim, (q_xlim*match_mdl.params[1]) + match_mdl.params[0], color = 'black',
+                      linewidth = 2) 
 
-    # EXPERIMENT 2
-    exp2_gain_q_mean = exp2_gain_bestparams[:,3].mean()
-    exp2_gain_q_sem = exp2_gain_bestparams[:,3].std()/np.sqrt(len(exp2_gain_bestparams[:,3]))
-    
-    exp2_loss_q_mean = exp2_loss_bestparams[:,3].mean()
-    exp2_loss_q_sem = exp2_loss_bestparams[:,3].std()/np.sqrt(len(exp2_loss_bestparams[:,3]))
+        probmatch_ax.set_xticks([0, .5, 1])
+        probmatch_ax.set_yticks([0, .5, 1])
+        probmatch_ax.set_ylabel('RS-RL Agent Choice')
 
-    #---------------------------------------------
-    #                  PLOTTING
-    #---------------------------------------------
-    # make figure and axes  
-    fig = plt.figure(figsize=(8, 4), dpi=300)
+        if exp == 1:
+            bias_ax.set_title('Inidividual Biases')
+            accuracy_ax.set_title('Model Accuracy')
+            qreg_ax.set_title('RS-RL Quantile Predicts \n Individual Risk Attitudes')
+            probmatch_ax.set_title('RS-RL Choice Predicts \n Human Choice')
 
-    gs = fig.add_gridspec(2,12)
-    ax0 = fig.add_subplot(gs[0, 0: 2])
-    ax1 = fig.add_subplot(gs[0, 3: 5])
-    ax2 = fig.add_subplot(gs[0, 6: 9])
-    ax3 = fig.add_subplot(gs[1, 0: 2])
-    ax4 = fig.add_subplot(gs[1, 3: 5])
-    ax5 = fig.add_subplot(gs[1, 6: 9])
- 
-    
-    #-----
-    # EXPERIMENT 1
-    #-----
+            bias_ax.legend()
+            probmatch_ax.legend(['20%', '50%', '80%'], fontsize=8)
 
-    # plot distRL model accuracy 
-    ax0.bar(1, exp1_gain_acc_mean, yerr=exp1_gain_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[1,:])
-    
-    ax0.bar(2, exp1_loss_acc_mean, yerr=exp1_loss_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[5,:])
-
-    ax0.plot([0,3],[.5,.5],color = 'tab:gray', linestyle = '--')
-    ax0.set_ylabel('Exp 1 \n Model Accuracy')
-    ax0.set_xticks([])
-    ax0.set_ylim([0,1])
-    ax0.set_yticks([0, .5, 1])
-    ax0.set_xlim([.5,2.5])
-    #ax0.set_xticklabels(['Gain','Loss'])
-    
-
-    # plot best fitting quantiles for distRL model
-    ax1.bar(1, exp1_gain_q_mean, yerr=exp1_gain_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[1,:])
-    
-    ax1.bar(2, exp1_loss_q_mean, yerr=exp1_loss_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[5,:])
-
-    ax1.set_xticks([])
-    ax1.set_ylim([0,1])
-    ax1.set_yticks([0, .5, 1])
-    ax1.set_xlim([.5,2.5])
-    #ax1.set_xticklabels(['Gain','Loss'])
-    ax1.set_ylabel('distRL Quantile')
-    
-    # predict model quantile from bias
-    ax2.scatter(exp1_gain_EQ_bias,exp1_gain_bestparams[:,3],color=cmap[1,:], s =20)
-    ax2.scatter(exp1_loss_EQ_bias,exp1_loss_bestparams[:,3],color=cmap[5,:], s =20)
-    
-    # plot line of best fit
-    ax2.plot(np.array([0,1]),np.array([0,1])*exp1_slope + exp1_intercept, 
-               color = 'black', linewidth=2)
-    
-    ax2.set_xlabel('EQ bias')
-    ax2.set_ylabel('distRL Quantile')
-    ax2.set_xticks(ticks = np.array([]))
-    ax2.set_yticks(ticks = np.array([0, .5, 1]))
-    ax2.set_xlim([0,1])
-    ax2.set_ylim([0,1])
-
-    #-----
-    # EXPERIMENT 2
-    #-----
-
-    # plot distRL model accuracy 
-    ax3.bar(1, exp2_gain_acc_mean, yerr=exp2_gain_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[1,:])
-    
-    ax3.bar(2, exp2_loss_acc_mean, yerr=exp2_loss_acc_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[5,:])
-
-    ax3.plot([0,3],[.5,.5],color = 'tab:gray', linestyle = '--')
-    ax3.set_ylabel('Exp 2 \n Model Accuracy')
-    ax3.set_xticks([1,2])
-    ax3.set_ylim([0,1])
-    ax3.set_yticks([0, .5, 1])
-    ax3.set_xlim([.5,2.5])
-    ax3.set_xticklabels(['Gain','Loss'])
-    
-
-    # plot best fitting quantiles for distRL model
-    ax4.bar(1, exp2_gain_q_mean, yerr=exp2_gain_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[1,:])
-    
-    ax4.bar(2, exp2_loss_q_mean, yerr=exp2_loss_q_sem, align='center', alpha=1, 
-              ecolor='black', capsize=0, color = cmap[5,:])
-
-    ax4.set_xticks([1,2])
-    ax4.set_ylim([0,1])
-    ax4.set_yticks([0, .5, 1])
-    ax4.set_xlim([.5,2.5])
-    ax4.set_xticklabels(['Gain','Loss'])
-    ax4.set_ylabel('distRL Quantile')
-    
-    # predict model quantile from bias
-    ax5.scatter(exp2_gain_EQ_bias,exp2_gain_bestparams[:,3],color=cmap[1,:], s =20)
-    ax5.scatter(exp2_loss_EQ_bias,exp2_loss_bestparams[:,3],color=cmap[5,:], s =20)
-    
-    # plot line of best fit
-    ax5.plot(np.array([0,1]),np.array([0,1])*exp2_slope + exp2_intercept, 
-               color = 'black', linewidth=2)
-    
-    ax5.set_xlabel('EQ bias')
-    ax5.set_ylabel('distRL Quantile')
-    ax5.set_xticks(ticks = np.array([0, .5, 1]))
-    ax5.set_yticks(ticks = np.array([0, .5, 1]))
-    ax5.set_xlim([0,1])
-    ax5.set_ylim([0,1])
-
-    
+        if exp == 3:
+            bias_ax.set_xlabel('=SvsR Condition')
+            accuracy_ax.set_xlabel('Context')
+            qreg_ax.set_xlabel('RS-RL Quantile')
+            probmatch_ax.set_xlabel('Human Choice')
 
 
-  
-    xx=[] 
-# END of relate_distRL_to_EQbias
+
+
+
+
+        
+
+
+
+
+
+
+
+
+class RS_agent(object):
+    def __init__(self, n_states, alpha_plus, alpha_minus, beta):
+        self.alpha_plus = alpha_plus
+        self.alpha_minus = alpha_minus
+        self.beta = beta
+        self.Qtable = np.zeros(shape=(1, n_states))[0]
+
+    def softmax(self, option1, option2):
+
+        Q1 = self.Qtable[option1]
+        Q2 = self.Qtable[option2]
+        b = self.beta
+
+        if np.absolute(Q1 - Q2) > 0:
+            # prob of choosing option 1
+            softmax = np.exp(b*Q1) / (np.exp(b*Q1) + np.exp(b*Q2))
+            #softmax = 1/(1+np.exp(b*(Q1-Q2)))
+        else:
+            softmax = np.random.rand(1)
+
+        # which option did the agent pick?
+        if softmax > .5:
+            agent_choice = option1
+        else: 
+            agent_choice = option2
+
+        if softmax == 0:
+            softmax = .0000000001
+        if softmax == 1:
+            softmax = .9999999999
+
+        return softmax, agent_choice
+
+    
+    def update(self, chosen_opt, outcome, chosen_type):
+
+        prediction_error = outcome - self.Qtable[chosen_opt]
+
+        if prediction_error > 0:
+            a = self.alpha_plus
+        else:
+            a = self.alpha_minus
+
+        # update the Q table
+        self.Qtable[chosen_opt] = self.Qtable[chosen_opt] + (a*prediction_error)
+
+class differential_RS_agent(object):
+    def __init__(self, n_states, safe_a_plus, safe_a_minus, risky_a_plus, risky_a_minus, beta):
+        self.safe_a_plus = safe_a_plus
+        self.safe_a_minus = safe_a_minus
+        self.risky_a_plus = risky_a_plus
+        self.risky_a_minus = risky_a_minus
+        self.beta = beta
+        self.Qtable = np.zeros(shape=(1, n_states))[0]
+
+    def softmax(self, option1, option2):
+
+        Q1 = self.Qtable[option1]
+        Q2 = self.Qtable[option2]
+        b = self.beta
+
+        if np.absolute(Q1 - Q2) > 0:
+            # prob of choosing option 1
+            softmax = np.exp(b*Q1) / (np.exp(b*Q1) + np.exp(b*Q2))
+            #softmax = 1/(1+np.exp(b*(Q1-Q2)))
+        else:
+            softmax = np.random.rand(1)
+
+        # which option did the agent pick?
+        if softmax > .5:
+            agent_choice = option1
+        else: 
+            agent_choice = option2
+
+        if softmax == 0:
+            softmax = .0000000001
+        if softmax == 1:
+            softmax = .9999999999
+
+        return softmax, agent_choice
+
+    
+    def update(self, chosen_opt, outcome, chosen_type):
+
+        prediction_error = outcome - self.Qtable[chosen_opt]
+
+        if chosen_type == 'Safe':
+            if prediction_error > 0:
+                a = self.safe_a_plus
+            else:
+                a = self.safe_a_minus
+
+        if chosen_type == 'Risky':
+            if prediction_error > 0:
+                a = self.risky_a_plus
+            else:
+                a = self.risky_a_minus
+
+        # update the Q table
+        self.Qtable[chosen_opt] = self.Qtable[chosen_opt] + (a*prediction_error)
+

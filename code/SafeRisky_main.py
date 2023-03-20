@@ -39,12 +39,19 @@ exp1_rt_stats, exp2_rt_stats, exp3_rt_stats = sr.run_rmANOVAs(gain_rt, loss_rt)
 # %% do win-stay analysis for data from both contexts
 winstay_long, winstay_wide = sr.win_stay_analysis(gain_all, loss_all)
 
-sr.plot_assess_win_stay(winstay_long, winstay_wide, gain_choice, loss_choice)
+win_stay_GLMs = sr.plot_assess_win_stay(winstay_long, winstay_wide, gain_choice, loss_choice)
 
 
 
 
-# %% do some distributional RL modelling
+# %% do some risk-sensitive RL modelling
+gain_fits, loss_fits = sr.risk_sensitive_RL(gain_all, loss_all)
+
+
+
+all_human = np.concatenate((gain_fits['subj_eq20'], gain_fits['subj_eq50'], gain_fits['subj_eq80']), axis=0)
+all_agent = np.concatenate((gain_fits['agent_eq20'], gain_fits['agent_eq50'], gain_fits['agent_eq80']), axis=0)
+
 
 sr.plot_individual_subjectEQbiases(exp1_gain_choice, exp1_loss_choice,
                                    exp2_gain_choice, exp2_loss_choice)

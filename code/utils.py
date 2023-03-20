@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-random utility functions
+random helper functions
 
 @author: Thomas Elston
 """
