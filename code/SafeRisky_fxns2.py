@@ -361,10 +361,10 @@ def plot_choice_or_rt(gain_data, loss_data, data_type):
         UE_ax.spines['left'].set_visible(False)
 
         EQ_ax.errorbar(np.array([1, 2, 3]), EQ_means[exp_ix, 0:3], EQ_sems[exp_ix, 0:3],
-                       color=cmap[9, :], capsize=0, linewidth=2, marker='s')
+                       color=cmap[1, :], capsize=0, linewidth=2, marker='s')
 
         EQ_ax.errorbar(np.array([1, 2, 3]), EQ_means[exp_ix, 3:6], EQ_sems[exp_ix, 3:6],
-                       color=cmap[8, :], capsize=0, linewidth=2, marker='s')
+                       color=cmap[5, :], capsize=0, linewidth=2, marker='s')
 
         EQ_ax.set_ylim(eq_ylim)
         EQ_ax.set_yticks(eq_ytcks)
@@ -399,7 +399,6 @@ def plot_choice_or_rt(gain_data, loss_data, data_type):
     # save plot
     plot_name = data_type + "_fig.svg"
     fig.savefig(plot_name, transparent=True)
-
 
 def assess_conds_with_best_choice(gain_choice, loss_choice):
     """t-tests against chance (.5) for conditions where there was best option
@@ -520,9 +519,7 @@ def win_stay_analysis(gain_all, loss_all):
     Args:
         gain_all (dataframe): _description_
         loss_all (dataframe): _description_
-
     Returns:
-
         winstay_long(dataframe): a large data frame with columns: vpnum, context, winstay probability, 
                                 experiment #, and EQbias
         winstay_wide (dataframe): wide-format data frame that's convenient for plotting later
@@ -530,6 +527,12 @@ def win_stay_analysis(gain_all, loss_all):
 
     # combine the data
     all_data = pd.concat([gain_all, loss_all])
+
+    # only keep the "pure" trials
+    eq_ix = all_data['probLeft'] == all_data['probRight']
+    main_block = all_data['phase'] == 'exp'
+    all_data = all_data.loc[~eq_ix & main_block]
+
 
     # get subject IDs
     subj_ids = all_data['vpNum'].unique()
@@ -758,14 +761,14 @@ def risk_sensitive_RL(gain_all, loss_all):
     # initialize output
     gain_fits = pd.DataFrame()
     loss_fits = pd.DataFrame()
-
-    alphavals = np.linspace(.1, 1, int(1 / .1))
+    grid_step = .05
+    alpha_vals = np.linspace(grid_step, 1, int(1 / grid_step))
     betas = np.linspace(1, 10, 10)
     n_params = 3
 
     # get the combinations of alphas and betas
     # 1st col = alphaplus, 2nd = alphaminus, 3rd = beta
-    Qparams = np.array(np.meshgrid(alphavals, alphavals, betas)).T.reshape(-1, 3)
+    Qparams = np.array(np.meshgrid(alpha_vals, alpha_vals, betas)).T.reshape(-1, 3)
 
     all_data = pd.concat([gain_all, loss_all])
 
@@ -1104,14 +1107,14 @@ def plot_RSRL_results(gain_fits, loss_fits):
                                 e_loss['agent_eq50'],
                                 e_loss['agent_eq80']])
 
-        bias_ax.plot(np.array([.2, .5, .8]), gain_bias, color=cmap[4, :], linewidth=1)
-        bias_ax.plot(np.array([.2, .5, .8]), loss_bias, color=cmap[0, :], linewidth=1)
+        bias_ax.plot(np.array([.2, .5, .8]), gain_bias, color=cmap[0, :], linewidth=1)
+        bias_ax.plot(np.array([.2, .5, .8]), loss_bias, color=cmap[4, :], linewidth=1)
 
         bias_ax.plot(np.array([.2, .5, .8]), np.mean(gain_bias, axis=1),
-                     color=cmap[5, :], marker='s', linewidth=3, markersize=8, label='Gain')
+                     color=cmap[1, :], marker='s', linewidth=3, markersize=8, label='Gain')
 
         bias_ax.plot(np.array([.2, .5, .8]), np.mean(loss_bias, axis=1),
-                     color=cmap[1, :], marker='s', linewidth=3, markersize=8, label='Loss')
+                     color=cmap[5, :], marker='s', linewidth=3, markersize=8, label='Loss')
         bias_ax.set_xticks([.2, .5, .8])
         bias_ax.set_yticks([0, .5, 1])
         bias_ax.set_xlim([.15, .85])
@@ -1122,13 +1125,13 @@ def plot_RSRL_results(gain_fits, loss_fits):
         gain_x = np.random.uniform(0, .4, len(e_gain))
         loss_x = np.random.uniform(.6, 1, len(e_loss))
 
-        accuracy_ax.scatter(gain_x, e_gain['accuracy'], marker='s', color=cmap[4, :],
+        accuracy_ax.scatter(gain_x, e_gain['accuracy'], marker='s', color=cmap[0, :],
                             s=10)
-        accuracy_ax.scatter(loss_x, e_loss['accuracy'], marker='s', color=cmap[0, :],
+        accuracy_ax.scatter(loss_x, e_loss['accuracy'], marker='s', color=cmap[4, :],
                             s=10)
-        accuracy_ax.scatter(.2, e_gain['accuracy'].mean(), marker='s', color=cmap[5, :],
+        accuracy_ax.scatter(.2, e_gain['accuracy'].mean(), marker='s', color=cmap[1, :],
                             s=100, edgecolors='black')
-        accuracy_ax.scatter(.8, e_loss['accuracy'].mean(), marker='s', color=cmap[1, :],
+        accuracy_ax.scatter(.8, e_loss['accuracy'].mean(), marker='s', color=cmap[5, :],
                             s=100, edgecolors='black')
         accuracy_ax.set_xticks([.2, .8])
         accuracy_ax.set_yticks([0, .5, 1])
@@ -1138,9 +1141,9 @@ def plot_RSRL_results(gain_fits, loss_fits):
 
         # plot relationship between quantile and risk-attitude
         qreg_ax.scatter(e_gain['quantile'], e_gain['total_p_risk_pref'], marker='s',
-                        s=10, color=cmap[4, :])
-        qreg_ax.scatter(e_loss['quantile'], e_loss['total_p_risk_pref'], marker='s',
                         s=10, color=cmap[0, :])
+        qreg_ax.scatter(e_loss['quantile'], e_loss['total_p_risk_pref'], marker='s',
+                        s=10, color=cmap[4, :])
         qreg_ax.set_xlim([0, 1])
         qreg_ax.set_ylim([0, 1])
 
