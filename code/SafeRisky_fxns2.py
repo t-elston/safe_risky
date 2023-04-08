@@ -12,17 +12,18 @@ import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 import pingouin as pg
 from glob import glob
+
+
 # --------------------------
+
 
 def load_process_data(datadir, context):
     """Loads and pre-processes data for a given experiment
-
     Args:
         datadir (string): the folder where each experiment's folder is
         context (string): whether to look at "gain" or "loss" data
-
     Returns:
-        all_data: the trialwise responses of each participant
+        all_data: the trial-wise responses of each participant
         p_choice_data: the participant mean responses for each condition
         p_rt_data: the participant mean RTs for each condition
     """
@@ -85,8 +86,8 @@ def load_process_data(datadir, context):
                 # only assess the context specified as input argument
                 df = df[df.blkType == context]
 
-                # drop trials with RTs that were too slow or too fast
-                df = df.drop(df[(df.rt > 2000) | (df.rt < 200)].index)
+                # drop trials with RTs that were too slow or too fast - cut-offs determined via manual inspection
+                df = df.drop(df[(df.rt > 1500) | (df.rt < 200)].index)
                 df = df.reset_index()
 
                 # change a few datatypes
@@ -394,11 +395,11 @@ def plot_choice_or_rt(gain_data, loss_data, data_type):
             pure_ax.set_xlabel('Choice Condition')
             EQ_ax.set_xlabel('Equivaluable Condition')
 
-
     plt.show()
     # save plot
     plot_name = data_type + "_fig.svg"
     fig.savefig(plot_name, transparent=True)
+
 
 def assess_conds_with_best_choice(gain_choice, loss_choice):
     """t-tests against chance (.5) for conditions where there was best option
@@ -511,14 +512,116 @@ def run_rmANOVAs(gain_data, loss_data):
     return exp1_stats, exp2_stats, exp3_stats
 
 
+def eq_bias_by_prob_posthoc(gain_choice, loss_choice):
+    """This analysis plots and assess the context-related differences in risk attitudes
+    as a function of probability.
+
+    Args:
+        gain_choice (dataframe): mean participant choice patterns in the gain context
+        loss_choice (dataframe): mean participant choice patterns in the loss context
+
+    Returns:
+        prob_glms (dict): summary of GLMs showing effect of probability on contextual differences
+                          in p(Choose Risky) in the =SvsR trials
+    """
+
+    # initialize output
+    prob_glms = {}
+
+    # create the figure and define color map
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+
+    fig, ax = plt.subplots(1, 3, figsize=(9, 3), dpi=300)
+
+    # loop over each experiment
+    for exp in np.unique(gain_choice['exp_num']):
+        eq20 = (gain_choice['EQ20'].loc[gain_choice['exp_num'] == exp] -
+                loss_choice['EQ20'].loc[loss_choice['exp_num'] == exp])
+        eq50 = (gain_choice['EQ50'].loc[gain_choice['exp_num'] == exp] -
+                loss_choice['EQ50'].loc[loss_choice['exp_num'] == exp])
+        eq80 = (gain_choice['EQ80'].loc[gain_choice['exp_num'] == exp] -
+                loss_choice['EQ80'].loc[loss_choice['exp_num'] == exp])
+
+        ax[int(exp - 1)].bar([0, 1, 2], [eq20.mean(), eq50.mean(), eq80.mean()], color=cmap[8, :])
+        ax[int(exp - 1)].plot([-2, 4], [0, 0], color='Gray')
+        ax[int(exp - 1)].errorbar([0, 1, 2], [eq20.mean(), eq50.mean(), eq80.mean()],
+                                  [eq20.sem(), eq50.sem(), eq80.sem()], color='black')
+        ax[int(exp - 1)].set_xticks([0, 1, 2])
+        ax[int(exp - 1)].set_xticklabels(['20%', '50%', '80%'])
+        ax[int(exp - 1)].set_ylim([-.2, .4])
+        ax[int(exp - 1)].set_xlim([-.8, 2.8])
+        ax[int(exp - 1)].set_title('Experiment ' + str(int(exp)))
+
+        # fit a regression
+        n_subs = len(eq20)
+        reg_df = pd.DataFrame()
+        reg_df['bias'] = pd.concat([eq20, eq80, eq80], axis=0)
+        reg_df['prob'] = np.concatenate([np.ones(shape=(n_subs,)) * .2,
+                                         np.ones(shape=(n_subs,)) * .5,
+                                         np.ones(shape=(n_subs,)) * .8, ])
+
+        exp_glm = smf.glm('bias~prob', data=reg_df).fit()
+
+        prob_glms['Exp_' + str(int(exp))] = exp_glm.summary()
+
+    plt.show()
+    fig.savefig("context_bias_interaction.svg", transparent=True)
+
+
+def assess_prob_expval_infoformat_regression(gain_choice, loss_choice):
+    """This function assesses the effects of information format and expected value across the
+    three experiments.
+
+    Args:
+        gain_choice (dataframe): participant mean choices in gain context
+        loss_choice (dataframe): participant mean choices in loss context
+    Returns:
+        bias_mdl (glm summary): summary of a GLM assessing role of probability,
+            information format, and expected value in cross-context choice biases
+    """
+
+    biases = np.concatenate([gain_choice['EQ20'] - loss_choice['EQ20'],
+                             gain_choice['EQ50'] - loss_choice['EQ50'],
+                             gain_choice['EQ80'] - loss_choice['EQ80']], axis=0)
+
+    subj_factor = np.concatenate([gain_choice['vpnum'],
+                                  gain_choice['vpnum'],
+                                  gain_choice['vpnum']], axis=0).astype((int))
+
+    exp_factor = np.concatenate([gain_choice['exp_num'],
+                                  gain_choice['exp_num'],
+                                  gain_choice['exp_num']], axis=0).astype(int)
+
+    ev_factor = np.ones_like(exp_factor)
+    info_format_factor = np.ones_like(exp_factor)
+    prob_factor = np.concatenate([np.ones(shape=(len(gain_choice)))*.2,
+                  np.ones(shape=(len(gain_choice))) * .5,
+                  np.ones(shape=(len(gain_choice))) * .8], axis=0)
+
+
+    ev_factor[exp_factor == 2] = -1
+    info_format_factor[exp_factor == 3] = -1
+
+    # put everything into a dataframe
+    reg_df = pd.DataFrame()
+    reg_df['bias'] = biases
+    reg_df['prob'] = prob_factor
+    reg_df['subj'] = subj_factor
+    reg_df['ev'] = ev_factor
+    reg_df['exp'] = exp_factor
+    reg_df['info_type'] = info_format_factor
+    bias_mdl = smf.glm('bias~prob*ev*info_type', data=reg_df).fit().summary()
+
+    return bias_mdl
+
 def win_stay_analysis(gain_all, loss_all):
     """This analysis looks for instances where a certain option was chosen 
     and yielded a non-zero outcome (in gain context; opposite in loss context) 
-    and asks how likely the person is to selectthat option the next time it's presented.
+    and asks how likely the person is to select that option the next time it's presented.
 
     Args:
-        gain_all (dataframe): _description_
-        loss_all (dataframe): _description_
+        gain_all (dataframe): trial-by-trial response data from gain context
+        loss_all (dataframe): trial-by-trial response data from loss context
     Returns:
         winstay_long(dataframe): a large data frame with columns: vpnum, context, winstay probability, 
                                 experiment #, and EQbias
@@ -532,7 +635,6 @@ def win_stay_analysis(gain_all, loss_all):
     eq_ix = all_data['probLeft'] == all_data['probRight']
     main_block = all_data['phase'] == 'exp'
     all_data = all_data.loc[~eq_ix & main_block]
-
 
     # get subject IDs
     subj_ids = all_data['vpNum'].unique()
@@ -656,6 +758,30 @@ def plot_assess_hit_stay(winstay_long, winstay_wide, gain_choice, loss_choice):
         e_ws_mean = e_df.groupby(['context', 'type'])[[0.2, 0.5, 0.8]].mean().to_numpy()
         e_ws_sem = e_df.groupby(['context', 'type'])[[0.2, 0.5, 0.8]].sem().to_numpy()
 
+        # compute slopes for hit-stay curves
+        gain_ix = e_df['context'] == 'Gain'
+        loss_ix = e_df['context'] == 'Loss'
+        gain_df = pd.DataFrame()
+        loss_df = pd.DataFrame()
+        gain_df['hit_stay'] = pd.concat([e_df[0.2].loc[gain_ix],
+                                         e_df[0.5].loc[gain_ix],
+                                         e_df[0.8].loc[gain_ix]])
+        gain_df['prob'] = np.concatenate([np.ones(shape=np.sum(gain_ix), ) * .2,
+                                          np.ones(shape=np.sum(gain_ix), ) * .5,
+                                          np.ones(shape=np.sum(gain_ix), ) * .8, ])
+        loss_df['hit_stay'] = pd.concat([e_df[0.2].loc[loss_ix],
+                                         e_df[0.5].loc[loss_ix],
+                                         e_df[0.8].loc[loss_ix]])
+        loss_df['prob'] = np.concatenate([np.ones(shape=np.sum(loss_ix), ) * .2,
+                                          np.ones(shape=np.sum(loss_ix), ) * .5,
+                                          np.ones(shape=np.sum(loss_ix), ) * .8, ])
+
+        gain_hs_mdl = smf.glm('hit_stay ~ prob', gain_df).fit()
+        loss_hs_mdl = smf.glm('hit_stay ~ prob', loss_df).fit()
+
+        GLM_results['Exp_' + str(int(exp)) + 'hs_gain'] = gain_hs_mdl.summary()
+        GLM_results['Exp_' + str(int(exp)) + 'hs_loss'] = loss_hs_mdl.summary()
+
         # create subplots for this experiment
         ws_ax = fig.add_subplot(gs[exp_ix, 0: 5])
         gain_ax = fig.add_subplot(gs[exp_ix, 6: 11])
@@ -739,7 +865,7 @@ def plot_assess_hit_stay(winstay_long, winstay_wide, gain_choice, loss_choice):
             GLM_results[save_name] = plt_mdl.summary()
     plt.show()
     # save plot
-    fig.savefig("hit_stay_fig.svg", transparent=True)
+    # fig.savefig("hit_stay_fig.svg", transparent=True)
     return GLM_results
 
 
@@ -748,7 +874,6 @@ def plot_assess_hit_stay(winstay_long, winstay_wide, gain_choice, loss_choice):
 
 def risk_sensitive_RL(gain_all, loss_all):
     """Fits a risk-sensitive RL model for each participant in each context
-
     Args:
         gain_all (dataframe): trial-by-trial choice data in gain context
         loss_all (dataframe): trial-by-trial choice data in loss context
@@ -767,11 +892,13 @@ def risk_sensitive_RL(gain_all, loss_all):
     n_params = 3
 
     # get the combinations of alphas and betas
-    # 1st col = alphaplus, 2nd = alphaminus, 3rd = beta
-    Qparams = np.array(np.meshgrid(alpha_vals, alpha_vals, betas)).T.reshape(-1, 3)
+    # 1st col = alpha_plus, 2nd = alpha_minus, 3rd = beta
+    Q_params = np.array(np.meshgrid(alpha_vals, alpha_vals, betas)).T.reshape(-1, 3)
 
+    # merge the data
     all_data = pd.concat([gain_all, loss_all])
 
+    # keep track of parameter sets per participant
     ctr = 0
 
     # loop over experiments
@@ -819,20 +946,20 @@ def risk_sensitive_RL(gain_all, loss_all):
                 picked_risky = (t_chosen_type == 'Risky').astype(int)
 
                 # initialize intermediate output for the model runs for this participant / context
-                sum_log_likelihood = np.zeros((len(Qparams), 1))
-                eq_bias_LL = np.zeros((len(Qparams), 1))
-                accuracy = np.zeros((len(Qparams), 1))
-                eq_bias = np.zeros((len(Qparams), 3))
+                sum_log_likelihood = np.zeros((len(Q_params), 1))
+                eq_bias_LL = np.zeros((len(Q_params), 1))
+                accuracy = np.zeros((len(Q_params), 1))
+                eq_bias = np.zeros((len(Q_params), 3))
 
-                # now loop over Qparams
-                for q in range(len(Qparams)):
+                # now loop over Q_params
+                for q in range(len(Q_params)):
 
                     # initialize the output of this agent
                     t_log_likelihood = np.empty((len(p_data), 1))
                     t_agent_choices = np.zeros((len(p_data), 1)).astype(int)
 
                     # instantiate the agent with this param set
-                    agent = RS_agent(n_stim, Qparams[q, 0], Qparams[q, 1], Qparams[q, 2])
+                    agent = RS_agent(n_stim, Q_params[q, 0], Q_params[q, 1], Q_params[q, 2])
 
                     # step through the trials
                     for t in range(len(p_data)):
@@ -860,8 +987,8 @@ def risk_sensitive_RL(gain_all, loss_all):
 
                 # save the best fitting parameters for this participant
                 best_params_ix = np.argmax(sum_log_likelihood)
-                quantile = Qparams[best_params_ix, 0] / np.sum(Qparams[best_params_ix, 0:2])
-                beta = Qparams[best_params_ix, 2]
+                quantile = Q_params[best_params_ix, 0] / np.sum(Q_params[best_params_ix, 0:2])
+                beta = Q_params[best_params_ix, 2]
 
                 if ctx == 'Gain':
                     gain_fits.at[ctr, 'exp'] = exp
