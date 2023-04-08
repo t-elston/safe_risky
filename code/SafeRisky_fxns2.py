@@ -12,8 +12,6 @@ import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 import pingouin as pg
 from glob import glob
-
-
 # --------------------------
 
 
@@ -866,7 +864,7 @@ def plot_assess_hit_stay(winstay_long, winstay_wide, gain_choice, loss_choice):
             GLM_results[save_name] = plt_mdl.summary()
     plt.show()
     # save plot
-    # fig.savefig("hit_stay_fig.svg", transparent=True)
+    fig.savefig("hit_stay_fig.svg", transparent=True)
     return GLM_results
 
 
