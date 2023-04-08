@@ -565,7 +565,8 @@ def eq_bias_by_prob_posthoc(gain_choice, loss_choice):
         prob_glms['Exp_' + str(int(exp))] = exp_glm.summary()
 
     plt.show()
-    fig.savefig("context_bias_interaction.svg", transparent=True)
+    #fig.savefig("context_bias_interaction.svg", transparent=True)
+    return prob_glms
 
 
 def assess_prob_expval_infoformat_regression(gain_choice, loss_choice):

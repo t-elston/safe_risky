@@ -28,8 +28,13 @@ sr.plot_choice_or_rt(gain_rt, loss_rt, data_type='rt')
 # do t-tests against chance on conditions with a best option
 gain_ttests, loss_ttests = sr.assess_conds_with_best_choice(gain_choice, loss_choice)
 
-# do rm_anovas for each condition in each experiment
-# see anova tables with e.g. print(exp1_rt_stats['train'])
+# assess cross-context differences in risk preference
+prob_x_context_glms = sr.eq_bias_by_prob_posthoc(gain_choice, loss_choice)
+
+# assess roles of information format and expected value across experiments
+bias_mdl = sr.assess_prob_expval_infoformat_regression(gain_choice, loss_choice)
+
+# do rm_anovas for each condition in each experiment (print(exp1_rt_stats['train'])
 exp1_choice_stats, exp2_choice_stats, exp3_choice_stats = sr.run_rmANOVAs(gain_choice, loss_choice)
 exp1_rt_stats, exp2_rt_stats, exp3_rt_stats = sr.run_rmANOVAs(gain_rt, loss_rt)
 
