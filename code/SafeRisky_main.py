@@ -22,6 +22,7 @@ gain_choice, gain_rt, gain_all = sr.load_process_data(datadir, context='Gain')
 loss_choice, loss_rt, loss_all = sr.load_process_data(datadir, context='Loss')
 
 # %% plots + stats for main conditions of each experiment
+
 sr.plot_choice_or_rt(gain_choice, loss_choice, data_type='choice')
 sr.plot_choice_or_rt(gain_rt, loss_rt, data_type='rt')
 

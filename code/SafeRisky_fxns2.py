@@ -8,6 +8,8 @@ Code for analyzing safe vs risky human data
 import os
 import pandas as pd
 import numpy as np
+from scipy.optimize import minimize
+from scipy.optimize import basinhopping
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 import pingouin as pg
@@ -119,6 +121,9 @@ def load_process_data(datadir, context):
                 # define reaction times
                 rt = df.rt
 
+                # define trials that were "hits"
+                tHit = df['rewardCode']
+
                 # find out the chosen_prob of each trial
                 chosen_prob = np.empty(len(df.rt))
                 picked_left = df['responseSide'] == 'left'
@@ -150,7 +155,7 @@ def load_process_data(datadir, context):
                     else:
                         df.at[t, 'chosen_type'] = 'Safe'
 
-                        # choice conditions
+                # choice conditions
                 risky_best = best_type == 1
                 safe_best = best_type == 0
                 t20v20 = (df.probLeft == .2) & (df.probRight == .2)
@@ -203,6 +208,16 @@ def load_process_data(datadir, context):
                 p_choice_data.at[ctr, 'EQ50'] = np.nanmean(picked_risky[t50v50])
                 p_choice_data.at[ctr, 'EQ80'] = np.nanmean(picked_risky[t80v80])
 
+                # check how often the risky options paid off during training
+                t_risky = trainix & (picked_risky == 1)
+                t20_pHit = np.sum(t_risky & (tHit==1) & (chosen_prob == .2)) / np.sum((chosen_prob == .2) & t_risky)
+                t50_pHit = np.sum(t_risky & (tHit==1) & (chosen_prob == .5)) / np.sum((chosen_prob == .5) & t_risky)
+                t80_pHit = np.sum(t_risky & (tHit==1) & (chosen_prob == .8)) / np.sum((chosen_prob == .8) & t_risky)
+
+                p_choice_data.at[ctr, 't20'] = t20_pHit
+                p_choice_data.at[ctr, 't50'] = t50_pHit
+                p_choice_data.at[ctr, 't80'] = t80_pHit
+
                 # do the same but with RTs
                 p_rt_data.at[ctr, 't_safe'] = np.nanmean(rt[trainix & safe_ix])
                 p_rt_data.at[ctr, 't_risky'] = np.nanmean(rt[trainix & risky_ix])
@@ -230,6 +245,131 @@ def load_process_data(datadir, context):
 
 
 # END of load_processData
+
+
+def plot_task_validation(gain_choice, loss_choice, save_fig):
+    """Plots results from the training blocks and main block conditions where there
+    was a best choice.
+    Args:
+        gain_choice (dataframe): participant means in gain context
+        loss_choice (dataframe): participant means in loss context
+        save_fig (boolean): flag of whether or not to save the figure as a .svg file
+    """
+
+    experiment_ids = (np.unique(gain_choice['exp_num'])).astype(int)
+    # create figure and define the color map
+    cmap = plt.cm.Paired(np.linspace(0, 1, 12))
+    fig = plt.figure(figsize=(8, 8), dpi=300)
+    gs = fig.add_gridspec(3, 12)
+
+
+
+    for exp_ix, exp in enumerate(experiment_ids):
+
+        # pull the data for this experiment
+        gain_e_data = gain_choice.loc[gain_choice['exp_num'] == exp]
+        loss_e_data = loss_choice.loc[loss_choice['exp_num'] == exp]
+
+        # create subplots for this experiment
+        sampling_ax = fig.add_subplot(gs[exp_ix, 0: 4])
+        train_ax = fig.add_subplot(gs[exp_ix, 6: 8])
+        pure_ax = fig.add_subplot(gs[exp_ix, 8: 10])
+        UE_ax = fig.add_subplot(gs[exp_ix, 10: 12])
+
+        # sampling behavior during training
+        sampling_ax.plot([0,1], [0,1], color='gray')
+        sampling_ax.errorbar([.2, .5, .8], [gain_e_data['t20'].mean(),
+                                            gain_e_data['t50'].mean(),
+                                            gain_e_data['t80'].mean()],
+                                            [gain_e_data['t20'].sem(),
+                                            gain_e_data['t50'].sem(),
+                                            gain_e_data['t80'].sem()],
+                             color=cmap[1, :], capsize=0, linewidth=2, marker='s')
+        sampling_ax.errorbar([.2, .5, .8], [loss_e_data['t20'].mean(),
+                                            loss_e_data['t50'].mean(),
+                                            loss_e_data['t80'].mean()],
+                                            [loss_e_data['t20'].sem(),
+                                            loss_e_data['t50'].sem(),
+                                            loss_e_data['t80'].sem()],
+                             color=cmap[5, :], capsize=0, linewidth=2, marker='s')
+
+        sampling_ax.set_ylim([0, 1])
+        sampling_ax.set_yticks([.2, .5, .8])
+        sampling_ax.set_xlim([0, 1])
+        sampling_ax.set_xticks([.2, .5, .8])
+        sampling_ax.spines['top'].set_visible(False)
+        sampling_ax.spines['right'].set_visible(False)
+        sampling_ax.set_ylabel('Experienced Prob.')
+
+
+        # overall training performance
+        train_ax.errorbar(np.array([1, 2]), [gain_e_data['t_safe'].mean(), gain_e_data['t_risky'].mean()],
+                                            [gain_e_data['t_safe'].sem(), gain_e_data['t_risky'].sem()],
+                                             color=cmap[1, :], capsize=0, linewidth=2, marker='s')
+        train_ax.errorbar(np.array([1, 2]), [loss_e_data['t_safe'].mean(), loss_e_data['t_risky'].mean()],
+                                            [loss_e_data['t_safe'].sem(), loss_e_data['t_risky'].sem()],
+                                             color=cmap[5, :], capsize=0, linewidth=2, marker='s')
+        train_ax.set_ylim([0, 1])
+        train_ax.set_yticks([0, .5, 1])
+        train_ax.set_xlim([.8, 2.2])
+        train_ax.set_xticks([])
+        train_ax.set_ylabel('p(Choose Optimal)')
+        train_ax.spines['top'].set_visible(False)
+        train_ax.spines['right'].set_visible(False)
+
+        # 'Pure' safe and risky trials
+        pure_ax.errorbar(np.array([1, 2]), [gain_e_data['p_safe'].mean(), gain_e_data['p_risky'].mean()],
+                                            [gain_e_data['p_safe'].sem(), gain_e_data['p_risky'].sem()],
+                                             color=cmap[1, :], capsize=0, linewidth=2, marker='s')
+        pure_ax.errorbar(np.array([1, 2]), [loss_e_data['p_safe'].mean(), loss_e_data['p_risky'].mean()],
+                                            [loss_e_data['p_safe'].sem(), loss_e_data['p_risky'].sem()],
+                                             color=cmap[5, :], capsize=0, linewidth=2, marker='s')
+        pure_ax.set_ylim([0, 1])
+        pure_ax.set_xlim([.8, 2.2])
+        pure_ax.set_yticks([])
+        pure_ax.set_xticks([])
+        pure_ax.spines['top'].set_visible(False)
+        pure_ax.spines['right'].set_visible(False)
+        pure_ax.spines['left'].set_visible(False)
+
+        # Unequal safe vs risky trials
+        UE_ax.errorbar(np.array([1, 2]), [gain_e_data['UE_safe'].mean(), gain_e_data['UE_risky'].mean()],
+                                            [gain_e_data['UE_safe'].sem(), gain_e_data['UE_risky'].sem()],
+                                             color=cmap[1, :], capsize=0, linewidth=2, marker='s')
+        UE_ax.errorbar(np.array([1, 2]), [loss_e_data['UE_safe'].mean(), loss_e_data['UE_risky'].mean()],
+                                            [loss_e_data['UE_safe'].sem(), loss_e_data['UE_risky'].sem()],
+                                             color=cmap[5, :], capsize=0, linewidth=2, marker='s')
+        UE_ax.set_ylim([0, 1])
+        UE_ax.set_xlim([.8, 2.2])
+        UE_ax.set_yticks([])
+        UE_ax.set_xticks([])
+        UE_ax.spines['top'].set_visible(False)
+        UE_ax.spines['right'].set_visible(False)
+        UE_ax.spines['left'].set_visible(False)
+
+        if exp == 1:
+            sampling_ax.legend(['Unity','Gain', 'Loss'])
+            sampling_ax.set_title('Adequate Sampling')
+            train_ax.set_title('Training')
+            pure_ax.set_title('Pure S/U')
+            UE_ax.set_title('UE SvsU')
+
+        if exp == 3:
+            sampling_ax.set_xlabel('Objective Prob.')
+            train_ax.set_xticks([1, 2])
+            train_ax.set_xticklabels(['S', 'U'])
+            pure_ax.set_xticks([1, 2])
+            pure_ax.set_xticklabels(['S', 'U'])
+            pure_ax.set_xlabel('Choice Condition')
+            UE_ax.set_xticks([1, 2])
+            UE_ax.set_xticklabels(['S>U', 'U>S'])
+
+    plt.show()
+    # save plot
+    if save_fig == True:
+        fig.savefig('sampling_and_performance.svg', transparent=True)
+
+
 
 def plot_choice_or_rt(gain_data, loss_data, data_type):
     """Plots the mean+sem results for each condition
@@ -529,10 +669,43 @@ def eq_bias_by_prob_posthoc(gain_choice, loss_choice):
     # create the figure and define color map
     cmap = plt.cm.Paired(np.linspace(0, 1, 12))
 
-    fig, ax = plt.subplots(1, 3, figsize=(9, 3), dpi=300)
+    fig = plt.figure(figsize=(9, 6), dpi=300)
+    gs = fig.add_gridspec(7, 3)
+
 
     # loop over each experiment
-    for exp in np.unique(gain_choice['exp_num']):
+    for exp_num, exp in enumerate(np.unique(gain_choice['exp_num'])):
+
+        exp_ix = gain_choice['exp_num'] == exp
+
+        # create axes for this experiment
+        choice_ax = fig.add_subplot(gs[0: 3, exp_num])
+        diff_ax = fig.add_subplot(gs[4: 7, exp_num])
+
+        choice_ax.errorbar([0, 1, 2], [gain_choice['EQ20'].loc[exp_ix].mean(),
+                                                 gain_choice['EQ50'].loc[exp_ix].mean(),
+                                                 gain_choice['EQ80'].loc[exp_ix].mean()],
+                                                [gain_choice['EQ20'].loc[exp_ix].sem(),
+                                                 gain_choice['EQ50'].loc[exp_ix].sem(),
+                                                 gain_choice['EQ80'].loc[exp_ix].sem()],
+                                     color=cmap[1, :], capsize=0, linewidth=2, marker='s')
+
+        choice_ax.errorbar([0, 1, 2], [loss_choice['EQ20'].loc[exp_ix].mean(),
+                                                 loss_choice['EQ50'].loc[exp_ix].mean(),
+                                                 loss_choice['EQ80'].loc[exp_ix].mean()],
+                                                [loss_choice['EQ20'].loc[exp_ix].sem(),
+                                                 loss_choice['EQ50'].loc[exp_ix].sem(),
+                                                 loss_choice['EQ80'].loc[exp_ix].sem()],
+                                     color=cmap[5, :], capsize=0, linewidth=2, marker='s')
+        choice_ax.set_title('Experiment ' + str(int(exp)))
+        choice_ax.set_ylim([.2, .8])
+        choice_ax.set_yticks([.2, .5, .8])
+        choice_ax.set_xlim([-.2, 2.2])
+        choice_ax.set_xticks([0, 1, 2])
+        choice_ax.set_xticklabels(['20%', '50%', '80%'])
+        choice_ax.spines['right'].set_visible(False)
+        choice_ax.spines['top'].set_visible(False)
+
         eq20 = (gain_choice['EQ20'].loc[gain_choice['exp_num'] == exp] -
                 loss_choice['EQ20'].loc[loss_choice['exp_num'] == exp])
         eq50 = (gain_choice['EQ50'].loc[gain_choice['exp_num'] == exp] -
@@ -540,15 +713,22 @@ def eq_bias_by_prob_posthoc(gain_choice, loss_choice):
         eq80 = (gain_choice['EQ80'].loc[gain_choice['exp_num'] == exp] -
                 loss_choice['EQ80'].loc[loss_choice['exp_num'] == exp])
 
-        ax[int(exp - 1)].bar([0, 1, 2], [eq20.mean(), eq50.mean(), eq80.mean()], color=cmap[8, :])
-        ax[int(exp - 1)].plot([-2, 4], [0, 0], color='Gray')
-        ax[int(exp - 1)].errorbar([0, 1, 2], [eq20.mean(), eq50.mean(), eq80.mean()],
-                                  [eq20.sem(), eq50.sem(), eq80.sem()], color='black')
-        ax[int(exp - 1)].set_xticks([0, 1, 2])
-        ax[int(exp - 1)].set_xticklabels(['20%', '50%', '80%'])
-        ax[int(exp - 1)].set_ylim([-.2, .4])
-        ax[int(exp - 1)].set_xlim([-.8, 2.8])
-        ax[int(exp - 1)].set_title('Experiment ' + str(int(exp)))
+        diff_ax.bar([0, 1, 2], [eq20.mean(), eq50.mean(), eq80.mean()], color=cmap[8, :])
+        diff_ax.plot([-2, 4], [0, 0], color='Gray')
+        diff_ax.errorbar([0, 1, 2], [eq20.mean(), eq50.mean(), eq80.mean()],
+                                  [eq20.sem(), eq50.sem(), eq80.sem()], color='black',
+                                   capsize=0, linewidth=2, marker='s')
+        diff_ax.set_xticks([0, 1, 2])
+        diff_ax.set_xticklabels(['20%', '50%', '80%'])
+        diff_ax.set_ylim([-.2, .4])
+        diff_ax.set_xlim([-.8, 2.8])
+        diff_ax.spines['right'].set_visible(False)
+        diff_ax.spines['top'].set_visible(False)
+
+        if exp > 1:
+            choice_ax.spines['left'].set_visible(False)
+            diff_ax.spines['left'].set_visible(False)
+
 
         # fit a regression
         n_subs = len(eq20)
@@ -563,7 +743,7 @@ def eq_bias_by_prob_posthoc(gain_choice, loss_choice):
         prob_glms['Exp_' + str(int(exp))] = exp_glm.summary()
 
     plt.show()
-    #fig.savefig("context_bias_interaction.svg", transparent=True)
+    #fig.savefig("EqualSvsU.svg", transparent=True)
     return prob_glms
 
 
@@ -924,7 +1104,7 @@ def risk_sensitive_RL(gain_all, loss_all):
                                       (all_data['vpNum'] == p)]
 
                 t_stim = np.empty((len(p_data), 2))
-                participant_choice = np.empty((len(p_data), 1)).astype(int)
+                participant_choice = np.empty((len(p_data), 1))
                 for ix, i in enumerate(np.unique(p_data['probLeft'])):
                     t_stim[(p_data['probLeft'] == i) & (p_data['imgLeftType'] == 'Safe'), 0] = ix
                     t_stim[(p_data['probLeft'] == i) & (p_data['imgLeftType'] == 'Risky'), 0] = ix + 3
@@ -933,6 +1113,7 @@ def risk_sensitive_RL(gain_all, loss_all):
                     participant_choice[(p_data['chosen_prob'] == i) & (p_data['chosen_type'] == 'Safe')] = ix
                     participant_choice[(p_data['chosen_prob'] == i) & (p_data['chosen_type'] == 'Risky')] = ix + 3
 
+                participant_choice = participant_choice.astype(int)
                 n_stim = len(np.unique(t_stim))
                 t_stim = t_stim.astype(int)
                 t_outcomes = p_data['rewardPoints'].values.astype(int)
@@ -1391,61 +1572,6 @@ class RS_agent(object):
             a = self.alpha_plus
         else:
             a = self.alpha_minus
-
-        # update the Q table
-        self.Qtable[chosen_opt] = self.Qtable[chosen_opt] + (a * prediction_error)
-
-
-class differential_RS_agent(object):
-    def __init__(self, n_states, safe_a_plus, safe_a_minus, risky_a_plus, risky_a_minus, beta):
-        self.safe_a_plus = safe_a_plus
-        self.safe_a_minus = safe_a_minus
-        self.risky_a_plus = risky_a_plus
-        self.risky_a_minus = risky_a_minus
-        self.beta = beta
-        self.Qtable = np.zeros(shape=(1, n_states))[0]
-
-    def softmax(self, option1, option2):
-
-        Q1 = self.Qtable[option1]
-        Q2 = self.Qtable[option2]
-        b = self.beta
-
-        if np.absolute(Q1 - Q2) > 0:
-            # prob of choosing option 1
-            softmax = np.exp(b * Q1) / (np.exp(b * Q1) + np.exp(b * Q2))
-            # softmax = 1/(1+np.exp(b*(Q1-Q2)))
-        else:
-            softmax = np.random.rand(1)
-
-        # which option did the agent pick?
-        if softmax > .5:
-            agent_choice = option1
-        else:
-            agent_choice = option2
-
-        if softmax == 0:
-            softmax = .0000000001
-        if softmax == 1:
-            softmax = .9999999999
-
-        return softmax, agent_choice
-
-    def update(self, chosen_opt, outcome, chosen_type):
-
-        prediction_error = outcome - self.Qtable[chosen_opt]
-
-        if chosen_type == 'Safe':
-            if prediction_error > 0:
-                a = self.safe_a_plus
-            else:
-                a = self.safe_a_minus
-
-        if chosen_type == 'Risky':
-            if prediction_error > 0:
-                a = self.risky_a_plus
-            else:
-                a = self.risky_a_minus
 
         # update the Q table
         self.Qtable[chosen_opt] = self.Qtable[chosen_opt] + (a * prediction_error)
